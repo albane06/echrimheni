@@ -77,3 +77,85 @@ VALUES
 -- Section 7: Intérieur
     ('55555555-5555-5555-5555-000000000701', '44444444-4444-4444-4444-444444444407', 'État général de la sellerie et ceintures de sécurité', 'Usure cohérente avec le kilométrage affiché', 1, true, 1)
 ON CONFLICT (id) DO NOTHING;
+
+-- ==============================================================================
+-- VERTICALE TÉLÉPHONE & SMARTPHONE (Cahier des Charges Section 8.2)
+-- ==============================================================================
+
+-- 1. Téléphone Category
+INSERT INTO public.categories (id, code, name, description, icon, is_active)
+VALUES (
+    '11111111-1111-1111-1111-111111111112',
+    'telephone',
+    'Téléphone & Smartphone',
+    'Inspection complète avant achat pour smartphones et téléphones d occasion',
+    'smartphone',
+    true
+) ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+
+-- 2. Téléphone Standard Service
+INSERT INTO public.services (id, category_id, name, description, base_price, estimated_duration_minutes, is_active)
+VALUES (
+    '22222222-2222-2222-2222-222222222223',
+    '11111111-1111-1111-1111-111111111112',
+    'Diagnostic & Inspection Complète Smartphone',
+    'Contrôle technique approfondi de l écran, de la batterie, des capteurs, caméras et de l historique d ouverture.',
+    3000,
+    35,
+    true
+) ON CONFLICT (id) DO NOTHING;
+
+-- 3. Téléphone Inspection Template
+INSERT INTO public.inspection_templates (id, service_id, title, version, is_active)
+VALUES (
+    '33333333-3333-3333-3333-333333333334',
+    '22222222-2222-2222-2222-222222222223',
+    'Grille d inspection Téléphone v1.0',
+    1,
+    true
+) ON CONFLICT (id) DO NOTHING;
+
+-- 4. 7 Inspection Sections Téléphone
+INSERT INTO public.inspection_sections (id, template_id, title, order_index)
+VALUES 
+    ('44444444-4444-4444-4444-444444444501', '33333333-3333-3333-3333-333333333334', 'Écran & Affichage Tactile', 1),
+    ('44444444-4444-4444-4444-444444444502', '33333333-3333-3333-3333-333333333334', 'Batterie & Autonomie', 2),
+    ('44444444-4444-4444-4444-444444444503', '33333333-3333-3333-3333-333333333334', 'Bloc Caméras & Flash', 3),
+    ('44444444-4444-4444-4444-444444444504', '33333333-3333-3333-3333-333333333334', 'Réseau, SIM & Connectivité', 4),
+    ('44444444-4444-4444-4444-444444444505', '33333333-3333-3333-3333-333333333334', 'Audio, Microphones & Écouteurs', 5),
+    ('44444444-4444-4444-4444-444444444506', '33333333-3333-3333-3333-333333333334', 'Ports, Boutons & Biométrie', 6),
+    ('44444444-4444-4444-4444-444444444507', '33333333-3333-3333-3333-333333333334', 'Châssis & Historique d Ouverture', 7)
+ON CONFLICT (id) DO NOTHING;
+
+-- 5. Items Checklist Téléphone
+INSERT INTO public.inspection_items (id, section_id, name, description, weight, is_required, order_index)
+VALUES
+    -- Section 1: Écran
+    ('55555555-5555-5555-5555-000000000501', '44444444-4444-4444-4444-444444444501', 'Réactivité tactile & absence de zones mortes', 'Test multi-touch et défilement sur toute la dalle', 3, true, 1),
+    ('55555555-5555-5555-5555-000000000502', '44444444-4444-4444-4444-444444444501', 'Dalle OLED/LCD (pixels morts, brûlures, luminosité)', 'Contrôle sur fond blanc et noir complet', 3, true, 2),
+    ('55555555-5555-5555-5555-000000000503', '44444444-4444-4444-4444-444444444501', 'Vitre tactile & rayures', 'Absence de fissure traversante ou décollement', 2, true, 3),
+
+    -- Section 2: Batterie
+    ('55555555-5555-5555-5555-000000000504', '44444444-4444-4444-4444-444444444502', 'État de santé de la batterie (%) & cycles', 'Santé affichée et tenue en décharge rapide', 3, true, 1),
+    ('55555555-5555-5555-5555-000000000505', '44444444-4444-4444-4444-444444444502', 'Comportement de charge & température', 'Vitesse de charge normale sans surchauffe anormale', 2, true, 2),
+
+    -- Section 3: Caméras
+    ('55555555-5555-5555-5555-000000000506', '44444444-4444-4444-4444-444444444503', 'Capteurs photo arrière (grand angle, téléobjectif)', 'Netteté, mise au point autofocus et stabilisation', 2, true, 1),
+    ('55555555-5555-5555-5555-000000000507', '44444444-4444-4444-4444-444444444503', 'Caméra avant & Flash LED', 'Qualité selfie, flash et torche', 2, true, 2),
+
+    -- Section 4: Réseau & Connectivité
+    ('55555555-5555-5555-5555-000000000508', '44444444-4444-4444-4444-444444444504', 'Détection carte SIM & accroche réseau 4G/5G', 'Appel test et débit data mobile', 3, true, 1),
+    ('55555555-5555-5555-5555-000000000509', '44444444-4444-4444-4444-444444444504', 'Wi-Fi, Bluetooth & GPS', 'Connexion stable et appairage', 2, true, 2),
+
+    -- Section 5: Audio
+    ('55555555-5555-5555-5555-000000000510', '44444444-4444-4444-4444-444444444505', 'Haut-parleurs stéréo & écouteur d appel', 'Clarté acoustique sans grésillement à plein volume', 2, true, 1),
+    ('55555555-5555-5555-5555-000000000511', '44444444-4444-4444-4444-444444444505', 'Microphones d appel et de réduction de bruit', 'Enregistrement vocal clair', 2, true, 2),
+
+    -- Section 6: Ports, Boutons & Biométrie
+    ('55555555-5555-5555-5555-000000000512', '44444444-4444-4444-4444-444444444506', 'Port de charge (USB-C / Lightning)', 'Maintien mécanique du câble sans jeu excessif', 2, true, 1),
+    ('55555555-5555-5555-5555-000000000513', '44444444-4444-4444-4444-444444444506', 'Reconnaissance biométrique (Face ID / Empreinte)', 'Déverrouillage instantané et fonctionnel', 3, true, 2),
+
+    -- Section 7: Châssis & Historique Visible
+    ('55555555-5555-5555-5555-000000000514', '44444444-4444-4444-4444-444444444507', 'Traces d ouverture, vis de châssis & étanchéité', 'Contrôle des vis pentalobe/torx et joints d étanchéité', 3, true, 1),
+    ('55555555-5555-5555-5555-000000000515', '44444444-4444-4444-4444-444444444507', 'État général du châssis & tiroir SIM d origine', 'Absence de voilage ou déformation structurelle', 2, true, 2)
+ON CONFLICT (id) DO NOTHING;

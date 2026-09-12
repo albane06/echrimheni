@@ -5,11 +5,20 @@ export interface ReportPdfData {
   reportNumber: string;
   date: string;
   score: number;
-  vehicle: {
+  vehicle?: {
     make: string;
     model: string;
     year: number;
     mileage?: number;
+    askingPrice?: number;
+    location: string;
+  };
+  device?: {
+    brand: string;
+    model: string;
+    storage?: string;
+    color?: string;
+    imeiOrSerial?: string;
     askingPrice?: number;
     location: string;
   };
@@ -60,17 +69,27 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
       const scoreColor = data.score >= 80 ? '#059669' : data.score >= 50 ? '#d97706' : '#dc2626';
       doc.fontSize(24).fillColor(scoreColor).text(data.score + ' / 100', 380, 112, { align: 'right' });
 
-      // Vehicle & Inspector Information Box
-      doc.fontSize(11).fillColor('#0f172a').text('1. Informations du Vehicule & de l Expert', 40, 175);
+      // Vehicle or Device & Inspector Information Box
+      const itemTitle = data.vehicle ? '1. Informations du Vehicule & de l Expert' : '1. Informations de l Appareil & de l Expert';
+      doc.fontSize(11).fillColor('#0f172a').text(itemTitle, 40, 175);
       
       doc.fontSize(9).fillColor('#1e293b');
-      doc.text('Vehicule : ' + data.vehicle.make + ' ' + data.vehicle.model + ' (' + data.vehicle.year + ')', 40, 195);
-      doc.text('Kilometrage : ' + (data.vehicle.mileage ? data.vehicle.mileage + ' km' : 'Non renseigne'), 40, 210);
-      doc.text('Localisation : ' + data.vehicle.location, 40, 225);
+      if (data.vehicle) {
+        doc.text('Vehicule : ' + data.vehicle.make + ' ' + data.vehicle.model + ' (' + data.vehicle.year + ')', 40, 195);
+        doc.text('Kilometrage : ' + (data.vehicle.mileage ? data.vehicle.mileage + ' km' : 'Non renseigne'), 40, 210);
+        doc.text('Localisation : ' + data.vehicle.location, 40, 225);
+      } else if (data.device) {
+        doc.text('Appareil : ' + data.device.brand + ' ' + data.device.model + (data.device.storage ? ' (' + data.device.storage + ')' : ''), 40, 195);
+        doc.text('N de Serie / IMEI : ' + (data.device.imeiOrSerial || 'Verifie conforme'), 40, 210);
+        doc.text('Localisation : ' + data.device.location, 40, 225);
+      } else {
+        doc.text('Bien : Non specifie', 40, 195);
+        doc.text('Localisation : Algerie', 40, 210);
+      }
 
       doc.text('Expert : ' + data.expert.fullName, 320, 195);
       doc.text('Telephone : ' + data.expert.phone, 320, 210);
-      doc.text('RC : ' + (data.expert.rcNumber || 'Certifie conforme'), 320, 225);
+      doc.text('RC / Agrement : ' + (data.expert.rcNumber || 'Certifie conforme'), 320, 225);
 
       // Synthesis & Highlights
       doc.fontSize(11).fillColor('#0f172a').text('2. Synthese & Points Notables', 40, 255);
