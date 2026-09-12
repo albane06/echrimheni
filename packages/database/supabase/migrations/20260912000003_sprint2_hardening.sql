@@ -1,4 +1,4 @@
-﻿-- ==============================================================================
+-- ==============================================================================
 -- ECHRIMHENI SPRINT 2 - Production Hardening, Security, RLS & Storage
 -- ==============================================================================
 
@@ -132,6 +132,14 @@ BEGIN
         IF p_target_status IN ('ACCEPTED', 'IN_PROGRESS', 'INSPECTION_COMPLETED', 'REPORT_PENDING', 'REPORT_READY') THEN
             IF v_booking.expert_id != v_caller_id THEN
                 RAISE EXCEPTION 'Action réservée à l expert assigné.';
+            END IF;
+
+            -- CRITICAL: Check expert verification status
+            IF NOT EXISTS (
+                SELECT 1 FROM public.expert_documents
+                WHERE expert_id = v_caller_id AND verification_status = 'APPROVED'
+            ) THEN
+                RAISE EXCEPTION 'Action refusée : seules les candidatures d experts APPROVED peuvent accepter ou réaliser des missions.';
             END IF;
         END IF;
 
