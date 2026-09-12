@@ -1,63 +1,48 @@
-# ECHRIMHENI — Modèle de Sécurité & Confidentialité (Sprint 2)
+# ECHRIMHENI — Modèle de Sécurité, Confidentialité & Preuves Formelles (Sprint 2.1)
 
-Ce document décrit les garanties de sécurité, le modèle d'autorisation et les mécanismes de protection des données mis en œuvre sur EchriMheni MVP v1.0.
-
----
-
-## 1. Modèle d'Authentification & Rôles
-
-Le système distingue trois rôles applicatifs stricts :
-- **`BUYER`** : Acheteur pouvant créer des demandes d'inspection, réserver des créneaux, régler la prestation et consulter ses rapports.
-- **`EXPERT`** : Professionnel indépendant soumis à vérification administrative (CNI + Registre de Commerce), réalisant les inspections sur le terrain.
-- **`ADMIN`** : Administrateur central chargé de la validation des experts, de la supervision des missions et de l'audit.
-
-### Protection contre l'Escalade de Privilèges (V-01)
-- L'auto-attribution du rôle `ADMIN` lors de l'inscription publique est **strictement impossible**.
-- Le trigger PostgreSQL `handle_new_user()` s'exécutant en `SECURITY DEFINER` force le rôle à `BUYER` ou `EXPERT`.
-- Toute promotion vers le rôle `ADMIN` requiert l'exécution de la fonction sécurisée `promote_user_to_admin(p_user_id)` accessible uniquement par un administrateur authentifié ou le service role.
+Ce document décrit les garanties formelles de sécurité, le modèle d'autorisation multi-tenant et les 5 théorèmes de sécurité prouvés sur EchriMheni MVP v1.0.
 
 ---
 
-## 2. Row-Level Security (RLS) & Isolation des Données
-
-Row-Level Security est activée sur l'ensemble des 17 tables :
-- **`profiles`** : Les utilisateurs ne peuvent mettre à jour que leurs informations de contact, sans modifier leur colonne `role`.
-- **`expert_documents`** : Documents privés strictement inaccessibles aux autres experts, aux acheteurs et au public. Seul l'expert concerné et l'administrateur peuvent les lire.
-- **`bookings`** : Visibles uniquement par le Buyer demandeur, l'Expert assigné et l'Admin. Les statuts et montants ne peuvent être modifiés que via des RPC contrôlées.
-- **`reports`** : Consultables uniquement une fois publiés (`is_published = true`) par les parties concernées.
-
----
-
-## 3. Immuabilité des Rapports Publiés (V-03)
-
-- Dès qu'un rapport passe au statut `REPORT_READY` avec `is_published = true`, **la policy RLS interdit formellement toute modification (UPDATE) ou suppression (DELETE)** par l'expert.
-- Toute correction ultérieure doit faire l'objet d'un avenant ou d'une nouvelle version tracé dans l'historique d'audit.
+## 1. Théorème 1 : Isolation Étanchée Inter-Acheteurs (Cross-Buyer Isolation)
+> **« Un Buyer A ne peut accéder à aucune donnée de Buyer B. »**
+- **RLS Listings :** Un acheteur ne peut lire ou modifier que les annonces dont `buyer_id = auth.uid()`.
+- **RLS Bookings :** Les réservations d'un Buyer B sont invisibles et inaccessibles pour Buyer A.
+- **RLS Payments :** Les paiements et transactions bancaires sont isolés par réservation rattachée au Buyer propriétaire.
+- **RLS Reports :** Les rapports d'inspection générés sont strictement privés et réservés au Buyer de la mission (`b.buyer_id = auth.uid()`). Buyer A ne peut ni voir ni télécharger le rapport de Buyer B.
+- **Preuve automatisée :** `tests/sprint2-1-security-proof.test.ts` (section *Theorem 1*).
 
 ---
 
-## 4. Intégrité Financière & Idempotence des Paiements (V-05)
-
-- **Calcul Serveur :** Les montants (part expert 85%, commission plateforme 15%) sont recalculés côté serveur et ne dépendent jamais des valeurs envoyées par le client.
-- **Contrainte d'Idempotence :** La table `payments` dispose d'une contrainte d'unicité `uq_payment_transaction_ref`.
-- Un appel répété ou un rejeu réseau avec la même référence de transaction renvoie immédiatement l'enregistrement existant sans double débit.
-
----
-
-## 5. Sécurité du Stockage (Supabase Storage - V-04)
-
-Trois buckets privés sont configurés avec des politiques d'accès étanches :
-1. **`expert-documents`** (Privé, 10 Mo max, PDF/JPEG/PNG) : Contient les cartes d'identité (CNI) et Registres de Commerce (RC). Accessible uniquement via signed URLs temporaires générées pour l'administration.
-2. **`inspection-media`** (Privé, 15 Mo max, JPEG/PNG/WebP/MP4) : Contient les photos prises lors du contrôle terrain.
-3. **`reports`** (Privé, 20 Mo max, PDF) : Contient les exports PDF certifiés des rapports d'inspection.
+## 2. Théorème 2 : Périmètre d'Action des Experts & Confidentialité des Justificatifs
+> **« Un Expert A ne peut accéder qu'aux missions autorisées. »**
+- **Confidentialité des Dossiers RC & CNI :** Les pièces d'identité et registres de commerce sont stockés dans le bucket privé `expert-documents`. Un Expert A ne peut en aucun cas lire ou télécharger les documents sensibles de l'Expert B.
+- **Isolation des Missions :** Un Expert A ne peut ni accepter, ni inspecter, ni soumettre des réponses pour une mission assignée à l'Expert B.
+- **Preuve automatisée :** `tests/sprint2-1-security-proof.test.ts` (section *Theorem 2*).
 
 ---
 
-## 6. Traçabilité & Journal d'Audit (`admin_actions`)
+## 3. Théorème 3 : Verrouillage Strict des Experts Non-Approuvés
+> **« Un expert PENDING ne peut jamais prendre une mission. »**
+- **Invisibilité dans l'annuaire :** La requête publique `getApprovedExperts()` applique la condition obligatoire `verification_status = 'APPROVED'`. Les experts `PENDING`, `REJECTED` ou `SUSPENDED` ne sont jamais renvoyés aux acheteurs.
+- **Verrou Serveur sur la State Machine :** Dans `transition_booking_rpc`, toute transition vers `ACCEPTED` ou `IN_PROGRESS` vérifie l'existence d'une approbation active (`verification_status = 'APPROVED'`). Tout appel par un expert `PENDING` est immédiatement rejeté avec une exception PostgreSQL.
+- **Preuve automatisée :** `tests/sprint2-1-security-proof.test.ts` (section *Theorem 3*).
 
-Toutes les opérations administratives sensibles créent un enregistrement immuable :
-- `EXPERT_APPROVED`
-- `EXPERT_REJECTED` (avec conservation obligatoire du motif)
-- `EXPERT_SUSPENDED`
-- `USER_PROMOTED_TO_ADMIN`
+---
 
-Les utilisateurs normaux ne disposent d'aucun droit d'écriture ou de modification sur la table `admin_actions`.
+## 4. Théorème 4 : Impossibilité d'Élévation au Rôle ADMIN
+> **« Un utilisateur normal ne peut jamais devenir ADMIN. »**
+- **Sanitisation à l'inscription :** Le trigger `handle_new_user()` sur `auth.users` force le rôle à `BUYER` ou `EXPERT`. Toute valeur `ADMIN` fournie par le client est écrasée.
+- **Verrouillage de la table Profiles :** La policy RLS `Profiles insert restriction` et `WITH CHECK (role = current_role)` empêche toute modification de rôle via requête directe.
+- **Protection de la RPC de promotion :** La fonction `promote_user_to_admin()` vérifie formellement `is_admin(auth.uid())` ou le token `service_role`. Tout appel par un utilisateur non-administrateur échoue immédiatement.
+- **Preuve automatisée :** `tests/sprint2-1-security-proof.test.ts` (section *Theorem 4*).
+
+---
+
+## 5. Théorème 5 : Intégrité Inviolable des Prix, Paiements, Scores et Rapports
+> **« Aucun utilisateur ne peut fabriquer/modifier le prix, le paiement, le score ou le rapport. »**
+- **Intégrité des Prix :** Contraintes de vérification `price_total > 0` et recalcul obligatoire serveur de la commission (15%) et de la part expert (85%).
+- **Idempotence & Anti-Rejeu :** Contrainte `UNIQUE(transaction_ref)` sur `payments` et RPC `process_payment_rpc` empêchant les doubles débits et les paiements factices.
+- **Calcul Serveur Inviolable du Score :** Le score n'est jamais accepté depuis le client. Il est recalculé côté serveur à partir des réponses enregistrées, appliquant les pondérations et le plafonnement strict à 49/100 en cas de défaut `CRITIQUE`.
+- **Immuabilité des Rapports :** Dès lors qu'un rapport est publié (`is_published = true`), toute modification `UPDATE` ou suppression `DELETE` par l'expert ou le client est strictement rejetée par la base de données.
+- **Preuve automatisée :** `tests/sprint2-1-security-proof.test.ts` (section *Theorem 5*).
