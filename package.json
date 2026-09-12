@@ -1,0 +1,20 @@
+{
+  "name": "echrimheni-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "test": "vitest run",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "dev": "turbo run dev",
+    "demo": "tsx scripts/run-e2e-demo.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "tsx": "^4.23.13",
+    "turbo": "^2.4.4",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.7"
+  },
+  "packageManager": "pnpm@12.4.1"
+}
