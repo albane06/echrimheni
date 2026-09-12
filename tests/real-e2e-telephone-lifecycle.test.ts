@@ -12,6 +12,7 @@ import {
   LEGAL_DISCLAIMER
 } from '@echrimheni/shared';
 import { generateInspectionPdf } from '../packages/database/src/services/pdf.js';
+import { loadSeedTelephoneChecklist } from '../packages/database/src/services/seed-parser.js';
 
 describe('Real End-to-End Téléphone Lifecycle (Cahier des Charges Section 8.2)', () => {
   it('executes the full smartphone inspection flow with dynamic checklist, real PDF generation, and cross-buyer isolation', async () => {
@@ -130,83 +131,18 @@ describe('Real End-to-End Téléphone Lifecycle (Cahier des Charges Section 8.2)
     booking.status = bookingStatus;
 
     // =========================================================================
-    // STEP 6: Checklist loaded from Supabase (7 Sections Téléphone)
+    // STEP 6: Checklist loaded directly from Supabase seed.sql (7 Sections Téléphone)
     // =========================================================================
-    const telephoneSections = [
-      {
-        id: 'sec-phone-1',
-        title: 'Écran & Affichage Tactile',
-        items: [
-          { id: 'it-p-01', name: 'Réactivité tactile & absence de zones mortes', weight: 3, is_required: true },
-          { id: 'it-p-02', name: 'Dalle OLED/LCD (pixels morts, brûlures, luminosité)', weight: 3, is_required: true },
-          { id: 'it-p-03', name: 'Vitre tactile & rayures', weight: 2, is_required: true }
-        ]
-      },
-      {
-        id: 'sec-phone-2',
-        title: 'Batterie & Autonomie',
-        items: [
-          { id: 'it-p-04', name: 'État de santé de la batterie (%) & cycles', weight: 3, is_required: true },
-          { id: 'it-p-05', name: 'Comportement de charge & température', weight: 2, is_required: true }
-        ]
-      },
-      {
-        id: 'sec-phone-3',
-        title: 'Bloc Caméras & Flash',
-        items: [
-          { id: 'it-p-06', name: 'Capteurs photo arrière (grand angle, téléobjectif)', weight: 2, is_required: true },
-          { id: 'it-p-07', name: 'Caméra avant & Flash LED', weight: 2, is_required: true }
-        ]
-      },
-      {
-        id: 'sec-phone-4',
-        title: 'Réseau, SIM & Connectivité',
-        items: [
-          { id: 'it-p-08', name: 'Détection carte SIM & accroche réseau 4G/5G', weight: 3, is_required: true },
-          { id: 'it-p-09', name: 'Wi-Fi, Bluetooth & GPS', weight: 2, is_required: true }
-        ]
-      },
-      {
-        id: 'sec-phone-5',
-        title: 'Audio, Microphones & Écouteurs',
-        items: [
-          { id: 'it-p-10', name: 'Haut-parleurs stéréo & écouteur d appel', weight: 2, is_required: true },
-          { id: 'it-p-11', name: 'Microphones d appel et de réduction de bruit', weight: 2, is_required: true }
-        ]
-      },
-      {
-        id: 'sec-phone-6',
-        title: 'Ports, Boutons & Biométrie',
-        items: [
-          { id: 'it-p-12', name: 'Port de charge (USB-C / Lightning)', weight: 2, is_required: true },
-          { id: 'it-p-13', name: 'Reconnaissance biométrique (Face ID / Empreinte)', weight: 3, is_required: true }
-        ]
-      },
-      {
-        id: 'sec-phone-7',
-        title: 'Châssis & Historique Visible',
-        items: [
-          { id: 'it-p-14', name: 'Traces d ouverture, vis de châssis & étanchéité', weight: 3, is_required: true },
-          { id: 'it-p-15', name: 'État général du châssis & tiroir SIM d origine', weight: 2, is_required: true }
-        ]
-      }
-    ];
+    const seedData = loadSeedTelephoneChecklist();
+    const telephoneSections = seedData.sections;
+    const allPhoneItems: InspectionItem[] = seedData.items;
 
     expect(telephoneSections.length).toBe(7);
-
-    const allPhoneItems: InspectionItem[] = telephoneSections.flatMap(sec =>
-      sec.items.map(it => ({
-        id: it.id,
-        section_id: sec.id,
-        name: it.name,
-        weight: it.weight,
-        is_required: it.is_required,
-        order_index: 1,
-        possible_statuses: ['BON', 'MOYEN', 'MAUVAIS', 'NON_TESTE'],
-        possible_severities: ['INFO', 'FAIBLE', 'MOYEN', 'IMPORTANT', 'CRITIQUE']
-      }))
-    );
     expect(allPhoneItems.length).toBe(15);
+
+    // Verify that the weights loaded directly from SQL sum to 36
+    const totalWeightsFromSql = allPhoneItems.reduce((acc, it) => acc + it.weight, 0);
+    expect(totalWeightsFromSql).toBe(36);
 
     // =========================================================================
     // STEP 7: Expert adds photos, saves answers and observations

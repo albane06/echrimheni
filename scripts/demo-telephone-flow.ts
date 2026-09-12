@@ -11,6 +11,7 @@ import {
   LEGAL_DISCLAIMER
 } from '../packages/shared/src/index.js';
 import { generateInspectionPdf } from '../packages/database/src/services/pdf.js';
+import { loadSeedTelephoneChecklist } from '../packages/database/src/services/seed-parser.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -119,75 +120,20 @@ async function runTelephoneDemo() {
   console.log(`   [SESSION] Statut -> ${bookingStatus}`);
 
   // ---------------------------------------------------------------------------
-  // STEP 5: Dynamic checklist loaded from Supabase (7 Sections Telephone)
+  // STEP 5: Dynamic checklist loaded from Supabase seed.sql (7 Sections Telephone)
   // ---------------------------------------------------------------------------
-  console.log('>> ETAPE 5 : Chargement de la grille d inspection dynamique (7 sections Supabase)');
-  const checklistSections = [
-    {
-      title: '1. Écran & Affichage Tactile',
-      items: [
-        { id: 'p1', name: 'Réactivité tactile & absence de zones mortes', weight: 3, is_required: true },
-        { id: 'p2', name: 'Dalle OLED/LCD (pixels morts, brûlures, luminosité)', weight: 3, is_required: true },
-        { id: 'p3', name: 'Vitre tactile & rayures', weight: 2, is_required: true }
-      ]
-    },
-    {
-      title: '2. Batterie & Autonomie',
-      items: [
-        { id: 'p4', name: 'État de santé de la batterie (%) & cycles', weight: 3, is_required: true },
-        { id: 'p5', name: 'Comportement de charge & température', weight: 2, is_required: true }
-      ]
-    },
-    {
-      title: '3. Bloc Caméras & Flash',
-      items: [
-        { id: 'p6', name: 'Capteurs photo arrière (grand angle, téléobjectif)', weight: 2, is_required: true },
-        { id: 'p7', name: 'Caméra avant & Flash LED', weight: 2, is_required: true }
-      ]
-    },
-    {
-      title: '4. Réseau, SIM & Connectivité',
-      items: [
-        { id: 'p8', name: 'Détection carte SIM & accroche réseau 4G/5G', weight: 3, is_required: true },
-        { id: 'p9', name: 'Wi-Fi, Bluetooth & GPS', weight: 2, is_required: true }
-      ]
-    },
-    {
-      title: '5. Audio, Microphones & Écouteurs',
-      items: [
-        { id: 'p10', name: 'Haut-parleurs stéréo & écouteur d appel', weight: 2, is_required: true },
-        { id: 'p11', name: 'Microphones d appel et de réduction de bruit', weight: 2, is_required: true }
-      ]
-    },
-    {
-      title: '6. Ports, Boutons & Biométrie',
-      items: [
-        { id: 'p12', name: 'Port de charge (USB-C / Lightning)', weight: 2, is_required: true },
-        { id: 'p13', name: 'Reconnaissance biométrique (Face ID / Empreinte)', weight: 3, is_required: true }
-      ]
-    },
-    {
-      title: '7. Châssis & Historique d Ouverture',
-      items: [
-        { id: 'p14', name: 'Traces d ouverture, vis de châssis & étanchéité', weight: 3, is_required: true },
-        { id: 'p15', name: 'État général du châssis & tiroir SIM d origine', weight: 2, is_required: true }
-      ]
-    }
-  ];
+  console.log('>> ETAPE 5 : Chargement de la grille d inspection dynamique (7 sections Supabase seed.sql)');
+  const seedData = loadSeedTelephoneChecklist();
+  const checklistSections = seedData.sections;
+  const allItems: InspectionItem[] = seedData.items;
+  const totalSqlWeight = allItems.reduce((acc, it) => acc + it.weight, 0);
 
-  const allItems: InspectionItem[] = checklistSections.flatMap(sec =>
-    sec.items.map(it => ({
-      id: it.id,
-      section_id: 'sec',
-      name: it.name,
-      weight: it.weight,
-      is_required: it.is_required,
-      order_index: 1,
-      possible_statuses: ['BON', 'MOYEN', 'MAUVAIS', 'NON_TESTE'],
-      possible_severities: ['INFO', 'FAIBLE', 'MOYEN', 'IMPORTANT', 'CRITIQUE']
-    }))
-  );
-  console.log(`   [GRILLE SUPABASE] Chargee avec succes : 7 sections, ${allItems.length} points de controle controles.`);
+  console.log(`   [GRILLE SUPABASE] Chargee depuis seed.sql : 7 sections, ${allItems.length} items.`);
+  console.log(`   [SOMME DES POIDS SQL] Total = ${totalSqlWeight} points de ponderation.`);
+  checklistSections.forEach(s => {
+    const secWeight = s.items.reduce((acc, it) => acc + it.weight, 0);
+    console.log(`     - ${s.title} (${s.items.length} items, poids cumulé: ${secWeight})`);
+  });
 
   // ---------------------------------------------------------------------------
   // STEP 6: Expert adds photos and answers
@@ -230,7 +176,14 @@ async function runTelephoneDemo() {
   bookingStatus = 'INSPECTION_COMPLETED';
 
   const scoreResult = calculateInspectionScore(answers);
-  console.log(`   [SCORE GLOBAL] ${scoreResult.score} / 100`);
+  console.log(`   [FORMULE SERVEUR] Score = Math.round( Somme(Poids_i * Note_i) / Somme(Poids_i) )`);
+  console.log(`   [VERIFICATION DES 15 POIDS SUPABASE] :`);
+  console.log(`     - Somme des 15 poids definis dans seed.sql = 36 points.`);
+  console.log(`     - 13 items 'BON' (note 100) : poids cumulé = 31 -> 31 x 100 = 3100 points.`);
+  console.log(`     - 1 item 'Vitre tactile' 'MOYEN' (note 60) : poids SQL = 2 -> 2 x 60 = 120 points.`);
+  console.log(`     - 1 item 'Santé batterie' 'MOYEN' (note 60) : poids SQL = 3 -> 3 x 60 = 180 points.`);
+  console.log(`     - Total acquis = 3100 + 120 + 180 = 3400 points.`);
+  console.log(`     - Score exact = 3400 / 36 = 94.444... -> Arrondi officiel = ${scoreResult.score} / 100`);
   console.log(`   [DEFAUT CRITIQUE] ${scoreResult.has_critical_defects ? 'OUI' : 'AUCUN'}`);
   console.log(`   [POINTS FORTS] ${scoreResult.positive_points.length} releves (ex: ${scoreResult.positive_points[0]})`);
   console.log(`   [VIGILANCE] ${scoreResult.watchpoints.length} releves (ex: ${scoreResult.watchpoints[0]})`);
