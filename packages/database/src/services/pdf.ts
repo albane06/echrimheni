@@ -22,6 +22,14 @@ export interface ReportPdfData {
     askingPrice?: number;
     location: string;
   };
+  appliance?: {
+    applianceType: string;
+    brand: string;
+    model: string;
+    serialNumber?: string;
+    location: string;
+    askingPrice?: number;
+  };
   expert: {
     fullName: string;
     phone: string;
@@ -69,8 +77,15 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
       const scoreColor = data.score >= 80 ? '#059669' : data.score >= 50 ? '#d97706' : '#dc2626';
       doc.fontSize(24).fillColor(scoreColor).text(data.score + ' / 100', 380, 112, { align: 'right' });
 
-      // Vehicle or Device & Inspector Information Box
-      const itemTitle = data.vehicle ? '1. Informations du Vehicule & de l Expert' : '1. Informations de l Appareil & de l Expert';
+      // Vehicle, Device or Appliance & Inspector Information Box
+      let itemTitle = '1. Informations du Bien Verifie & de l Expert';
+      if (data.vehicle) {
+        itemTitle = '1. Informations du Vehicule & de l Expert';
+      } else if (data.device) {
+        itemTitle = '1. Informations de l Appareil Smartphone & de l Expert';
+      } else if (data.appliance) {
+        itemTitle = '1. Informations de l Appareil Electromenager & de l Expert';
+      }
       doc.fontSize(11).fillColor('#0f172a').text(itemTitle, 40, 175);
       
       doc.fontSize(9).fillColor('#1e293b');
@@ -82,6 +97,10 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
         doc.text('Appareil : ' + data.device.brand + ' ' + data.device.model + (data.device.storage ? ' (' + data.device.storage + ')' : ''), 40, 195);
         doc.text('N de Serie / IMEI : ' + (data.device.imeiOrSerial || 'Verifie conforme'), 40, 210);
         doc.text('Localisation : ' + data.device.location, 40, 225);
+      } else if (data.appliance) {
+        doc.text('Equipement : ' + data.appliance.brand + ' ' + data.appliance.model + ' (' + data.appliance.applianceType + ')', 40, 195);
+        doc.text('N de Serie : ' + (data.appliance.serialNumber || 'Verifie sur plaque signaletique'), 40, 210);
+        doc.text('Localisation : ' + data.appliance.location, 40, 225);
       } else {
         doc.text('Bien : Non specifie', 40, 195);
         doc.text('Localisation : Algerie', 40, 210);
@@ -123,15 +142,23 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
         });
       }
 
-      // Checklist Sections Detail (Page 2)
+      // Checklist Sections Detail (Page 2+)
       doc.addPage();
-      doc.fontSize(11).fillColor('#0f172a').text('3. Grille de Controle Detaillee (7 Sections)', 40, 40);
+      doc.fontSize(11).fillColor('#0f172a').text('3. Grille de Controle Detaillee (' + data.sections.length + ' Sections)', 40, 40);
       
       let sectionY = 65;
       data.sections.forEach((sec) => {
+        if (sectionY > 660) {
+          doc.addPage();
+          sectionY = 40;
+        }
         doc.fontSize(10).fillColor('#0284c7').text(sec.title, 40, sectionY);
         sectionY += 15;
         sec.items.forEach((item) => {
+          if (sectionY > 680) {
+            doc.addPage();
+            sectionY = 40;
+          }
           const itemStatus = '[' + item.status + ']';
           const line = itemStatus + ' ' + item.name + (item.comment ? ' - ' + item.comment : '');
           doc.fontSize(8).fillColor('#334155').text(line, 55, sectionY);
@@ -141,6 +168,9 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
       });
 
       // Legal Limitation Disclaimer (MANDATORY)
+      if (sectionY > 660) {
+        doc.addPage();
+      }
       doc.rect(40, 710, 515, 65).fillAndStroke('#fef2f2', '#fecaca');
       doc.fontSize(8).fillColor('#991b1b').text('MENTION LEGALE DE LIMITATION DE RESPONSABILITE :', 50, 718);
       doc.fontSize(7).fillColor('#7f1d1d').text(LEGAL_DISCLAIMER, 50, 730, { width: 495 });

@@ -8,7 +8,8 @@
     "typecheck": "turbo run typecheck",
     "dev": "turbo run dev",
     "demo": "tsx scripts/run-e2e-demo.ts",
-    "demo:phone": "tsx scripts/demo-telephone-flow.ts"
+    "demo:phone": "tsx scripts/demo-telephone-flow.ts",
+    "demo:appliance": "tsx scripts/demo-appliance-flow.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",
