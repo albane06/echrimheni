@@ -16,5 +16,9 @@
     "typescript": "^5.8.2",
     "vitest": "^3.0.7"
   },
-  "packageManager": "pnpm@12.4.1"
+  "packageManager": "pnpm@12.4.1",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
 }
