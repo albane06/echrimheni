@@ -158,6 +158,7 @@ export const ar: FrDict = {
     title: 'التقارير',
     emptyTitle: 'لا تقارير متوفرة',
     emptyMsg: 'تقارير الفحص المنشورة ستظهر هنا.',
+    viewRequests: 'عرض طلباتي',
     downloadPdf: 'تحميل PDF',
     openingPdf: 'جارٍ الفتح…',
     shareDisabled: 'مشاركة (غير متوفرة)',

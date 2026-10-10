@@ -33,7 +33,7 @@ type ReportRow = {
 
 const REPORTABLE = ['REPORT_READY', 'COMPLETED'];
 
-export function ReportsScreen() {
+export function ReportsScreen({ onGoRequests }: { onGoRequests?: () => void } = {}) {
   const { t, T, lang } = useLanguage();
   const [items, setItems] = useState<{ booking: BookingRow; report: ReportRow | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +123,8 @@ export function ReportsScreen() {
           icon={<FileText size={48} color={colors.primary[600]} strokeWidth={1.75} />}
           title={t('reports.emptyTitle')}
           message={t('reports.emptyMsg')}
+          actionTitle={onGoRequests ? t('reports.viewRequests') : undefined}
+          onAction={onGoRequests}
         />
       ) : (
         items.map(({ booking, report }) => (

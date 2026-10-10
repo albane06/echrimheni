@@ -156,6 +156,7 @@ export const fr = {
     title: 'Rapports',
     emptyTitle: 'Aucun rapport disponible',
     emptyMsg: "Vos rapports d'inspection publiés apparaîtront ici.",
+    viewRequests: 'Voir mes demandes',
     downloadPdf: 'Télécharger le PDF',
     openingPdf: 'Ouverture…',
     shareDisabled: 'Partager (non disponible)',

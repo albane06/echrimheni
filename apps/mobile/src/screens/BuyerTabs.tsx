@@ -204,7 +204,7 @@ export function BuyerTabs() {
             onSeeReport={() => setTab('reports')}
           />
         ) : tab === 'reports' ? (
-          <ReportsScreen />
+          <ReportsScreen onGoRequests={() => setTab('requests')} />
         ) : (
           <ProfileScreen />
         )}

@@ -158,6 +158,7 @@ export const en: FrDict = {
     title: 'Reports',
     emptyTitle: 'No reports available',
     emptyMsg: 'Your published inspection reports will appear here.',
+    viewRequests: 'View my requests',
     downloadPdf: 'Download PDF',
     openingPdf: 'Opening…',
     shareDisabled: 'Share (unavailable)',
