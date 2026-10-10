@@ -128,6 +128,10 @@ export interface Listing {
   location_commune: string;
   description?: string;
   photos: string[];
+  /** P7.6 — lien d'annonce en ligne fourni par le buyer (NULL = EchriMheni). */
+  listing_url?: string | null;
+  /** P7.6 — plateforme source (défaut 'ECHRI'). */
+  source_platform?: 'ECHRI' | 'FACEBOOK_MARKETPLACE' | 'OUEDKNISS' | 'OTHER';
   created_at: string;
 }
 

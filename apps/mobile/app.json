@@ -1,21 +1,37 @@
-﻿{
+{
   "expo": {
     "name": "EchriMheni",
     "slug": "echrimheni",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#020617"
-    },
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "dz.echrimheni.app",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#020617"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#071C45"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'application a besoin d'accéder à vos photos pour joindre des images à votre inspection ou annonce."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "57f70b50-6121-4186-8cfe-f993ae1c1015"
       }
     }
   }

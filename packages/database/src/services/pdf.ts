@@ -132,6 +132,16 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
         });
       }
 
+      if (data.majorDefects.length > 0) {
+        currentY += 5;
+        doc.fontSize(9).fillColor('#ea580c').text('DEFAUTS MAJEURS (' + data.majorDefects.length + ') :', 40, currentY);
+        currentY += 15;
+        data.majorDefects.forEach((defect) => {
+          doc.fontSize(8).fillColor('#9a3412').text('- ' + defect, 55, currentY);
+          currentY += 12;
+        });
+      }
+
       if (data.criticalDefects.length > 0) {
         currentY += 5;
         doc.fontSize(9).fillColor('#dc2626').text('DEFAUTS CRITIQUES (' + data.criticalDefects.length + ') :', 40, currentY);

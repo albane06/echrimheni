@@ -27,6 +27,31 @@ export const BookingStatusSchema = z.enum([
   'EXPIRED'
 ]);
 
+export const ListingSourcePlatformSchema = z.enum([
+  'ECHRI',
+  'FACEBOOK_MARKETPLACE',
+  'OUEDKNISS',
+  'OTHER',
+]);
+
+export const ListingUrlSchema = z
+  .string()
+  .trim()
+  .max(2048, 'Lien trop long')
+  .refine(
+    (v) => {
+      if (!v) return true;
+      try {
+        const url = new URL(v);
+        return url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Lien invalide (URL HTTPS attendue).' },
+  )
+  .optional();
+
 export const CreateAutomobileListingSchema = z.object({
   title: z.string().min(3, 'Titre trop court'),
   make: z.string().min(1, 'Marque requise'),
@@ -37,7 +62,9 @@ export const CreateAutomobileListingSchema = z.object({
   location_wilaya: z.string().min(2, 'Wilaya requise'),
   location_commune: z.string().min(2, 'Commune requise'),
   description: z.string().optional(),
-  photos: z.array(z.string().url()).default([])
+  photos: z.array(z.string().url()).default([]),
+  listing_url: ListingUrlSchema,
+  source_platform: ListingSourcePlatformSchema.default('ECHRI'),
 });
 
 export const ExpertOnboardingSchema = z.object({

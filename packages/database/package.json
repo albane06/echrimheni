@@ -8,6 +8,21 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "default": "./dist/client.js"
+    },
+    "./services/auth": {
+      "types": "./dist/services/auth.d.ts",
+      "import": "./dist/services/auth.js",
+      "default": "./dist/services/auth.js"
+    },
+    "./services/seed-parser": {
+      "types": "./dist/services/seed-parser.d.ts",
+      "import": "./dist/services/seed-parser.js",
+      "default": "./dist/services/seed-parser.js"
     }
   },
   "scripts": {

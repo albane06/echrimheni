@@ -45,7 +45,6 @@ export function parseSeedTelephoneChecklistFromSql(sql: string): SeedChecklistDa
       template_id: '33333333-3333-3333-3333-333333333334',
       title: secMatch[2],
       order_index: parseInt(secMatch[3], 10),
-      created_at: new Date().toISOString(),
       items: []
     });
   }
@@ -94,7 +93,6 @@ export function parseSeedApplianceChecklistFromSql(sql: string): SeedChecklistDa
       template_id: '33333333-3333-3333-3333-333333333335',
       title: secMatch[2],
       order_index: parseInt(secMatch[3], 10),
-      created_at: new Date().toISOString(),
       items: []
     });
   }
