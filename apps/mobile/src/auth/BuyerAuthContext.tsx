@@ -10,6 +10,15 @@ import type { Profile } from '@echrimheni/shared';
 
 export type BuyerAuthErrorKind = 'AUTH' | 'VALIDATION' | 'NETWORK' | 'UNKNOWN';
 
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export interface SignUpResult {
+  success: boolean;
+  needsEmailConfirmation: boolean;
+  error?: string | null;
+  errorKind?: BuyerAuthErrorKind | null;
+}
+
 export interface BuyerAuthState {
   sessionUserId: string | null;
   sessionEmail: string | null;
@@ -19,11 +28,80 @@ export interface BuyerAuthState {
   isLoading: boolean;
   error: string | null;
   errorKind: BuyerAuthErrorKind | null;
+  info: string | null;
+  clearError: () => void;
+  setInfo: (msg: string | null) => void;
   signIn: (email: string, password: string) => Promise<void>;
-  signUpBuyer: (email: string, password: string, fullName: string, phone: string) => Promise<void>;
-  signUpExpert: (email: string, password: string, fullName: string, phone: string, wilaya: string, commune: string) => Promise<void>;
+  signUpBuyer: (email: string, password: string, fullName: string, phone: string) => Promise<SignUpResult>;
+  signUpExpert: (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string,
+    wilaya: string,
+    commune: string
+  ) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+}
+
+export function formatAuthErrorMessage(rawMessage: string): { messageKey: string; kind: BuyerAuthErrorKind } {
+  const lower = rawMessage.toLowerCase();
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('network request failed') ||
+    lower.includes('network error') ||
+    lower.includes('networkerror') ||
+    lower.includes('timeout')
+  ) {
+    return { messageKey: 'errors.network', kind: 'NETWORK' };
+  }
+  if (
+    lower.includes('rate limit') ||
+    lower.includes('too many requests') ||
+    lower.includes('over_email_send_rate_limit')
+  ) {
+    return { messageKey: 'auth.rateLimitExceeded', kind: 'AUTH' };
+  }
+  if (
+    lower.includes('already registered') ||
+    lower.includes('already in use') ||
+    lower.includes('already exists') ||
+    lower.includes('email_exists') ||
+    lower.includes('user already registered')
+  ) {
+    return { messageKey: 'auth.emailAlreadyUsed', kind: 'VALIDATION' };
+  }
+  if (
+    lower.includes('password should be at least 6 characters') ||
+    lower.includes('password too short') ||
+    lower.includes('at least 6 characters')
+  ) {
+    return { messageKey: 'auth.passwordTooShort', kind: 'VALIDATION' };
+  }
+  if (
+    lower.includes('email not confirmed') ||
+    lower.includes('email_not_confirmed')
+  ) {
+    return { messageKey: 'auth.emailNotConfirmed', kind: 'AUTH' };
+  }
+  if (
+    lower.includes('invalid email') ||
+    lower.includes('format email') ||
+    lower.includes('email address')
+  ) {
+    return { messageKey: 'auth.invalidEmail', kind: 'VALIDATION' };
+  }
+  if (
+    lower.includes('invalid') ||
+    lower.includes('faible') ||
+    lower.includes('faibles') ||
+    lower.includes('requis') ||
+    lower.includes('required')
+  ) {
+    return { messageKey: rawMessage, kind: 'VALIDATION' };
+  }
+  return { messageKey: rawMessage, kind: 'AUTH' };
 }
 
 const BuyerAuthContext = createContext<BuyerAuthState>({
@@ -35,35 +113,15 @@ const BuyerAuthContext = createContext<BuyerAuthState>({
   isLoading: true,
   error: null,
   errorKind: null,
+  info: null,
+  clearError: () => {},
+  setInfo: () => {},
   signIn: async () => {},
-  signUpBuyer: async () => {},
-  signUpExpert: async () => {},
+  signUpBuyer: async () => ({ success: false, needsEmailConfirmation: false }),
+  signUpExpert: async () => ({ success: false, needsEmailConfirmation: false }),
   signOut: async () => {},
   refresh: async () => {},
 });
-
-function kindOf(message: string): BuyerAuthErrorKind {
-  const lower = message.toLowerCase();
-  if (
-    lower.includes('failed to fetch') ||
-    lower.includes('network request failed') ||
-    lower.includes('timeout') ||
-    lower.includes('networkerror')
-  ) {
-    return 'NETWORK';
-  }
-  if (
-    lower.includes('invalid') ||
-    lower.includes('faible') ||
-    lower.includes('faibles') ||
-    lower.includes('requis') ||
-    lower.includes('required') ||
-    lower.includes('faible')
-  ) {
-    return 'VALIDATION';
-  }
-  return 'AUTH';
-}
 
 export function BuyerAuthProvider({ children }: { children: React.ReactNode }) {
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
@@ -72,6 +130,12 @@ export function BuyerAuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<BuyerAuthErrorKind | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const clearError = useCallback(() => {
+    setError(null);
+    setErrorKind(null);
+  }, []);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -83,9 +147,10 @@ export function BuyerAuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setErrorKind(null);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erreur de session.';
-      setError(message);
-      setErrorKind(kindOf(message));
+      const rawMessage = err instanceof Error ? err.message : 'Erreur de session.';
+      const formatted = formatAuthErrorMessage(rawMessage);
+      setError(formatted.messageKey);
+      setErrorKind(formatted.kind);
       setSessionUserId(null);
       setSessionEmail(null);
       setProfile(null);
@@ -114,9 +179,10 @@ export function BuyerAuthProvider({ children }: { children: React.ReactNode }) {
     async (email: string, password: string) => {
       setError(null);
       setErrorKind(null);
+      setInfo(null);
       const cleanEmail = email.trim();
       if (!cleanEmail || !password) {
-        setError('Email et mot de passe requis.');
+        setError('auth.emailPasswordRequired');
         setErrorKind('VALIDATION');
         return;
       }
@@ -124,70 +190,162 @@ export function BuyerAuthProvider({ children }: { children: React.ReactNode }) {
         await signInUser(cleanEmail, password);
         await refresh();
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Échec de la connexion.';
-        setError(message);
-        setErrorKind(kindOf(message));
+        const rawMessage = err instanceof Error ? err.message : 'Échec de la connexion.';
+        const formatted = formatAuthErrorMessage(rawMessage);
+        setError(formatted.messageKey);
+        setErrorKind(formatted.kind);
       }
     },
     [refresh]
   );
 
   const signUpBuyer = useCallback(
-    async (email: string, password: string, fullName: string, phone: string) => {
+    async (email: string, password: string, fullName: string, phone: string): Promise<SignUpResult> => {
       setError(null);
       setErrorKind(null);
+      setInfo(null);
+
       const cleanEmail = email.trim();
-      if (!cleanEmail || !password || !fullName.trim() || !phone.trim()) {
-        setError('Tous les champs sont requis.');
+      const cleanName = fullName.trim();
+      const cleanPhone = phone.trim();
+
+      if (!cleanEmail || !password || !cleanName || !cleanPhone) {
+        const msg = 'auth.allFieldsRequired';
+        setError(msg);
         setErrorKind('VALIDATION');
-        return;
+        return { success: false, needsEmailConfirmation: false, error: msg, errorKind: 'VALIDATION' };
       }
+
+      if (!EMAIL_REGEX.test(cleanEmail)) {
+        const msg = 'auth.invalidEmail';
+        setError(msg);
+        setErrorKind('VALIDATION');
+        return { success: false, needsEmailConfirmation: false, error: msg, errorKind: 'VALIDATION' };
+      }
+
+      if (password.length < 6) {
+        const msg = 'auth.passwordTooShort';
+        setError(msg);
+        setErrorKind('VALIDATION');
+        return { success: false, needsEmailConfirmation: false, error: msg, errorKind: 'VALIDATION' };
+      }
+
       try {
-        // Rôle forcé BUYER côté service (jamais d'ADMIN depuis le client).
-        await signUpUser({
+        const data = await signUpUser({
           email: cleanEmail,
           password,
           role: 'BUYER',
-          fullName: fullName.trim(),
-          phone: phone.trim(),
+          fullName: cleanName,
+          phone: cleanPhone,
         });
-        await refresh();
+
+        // Supabase anti-enumeration check: existing user returns user with empty identities
+        if (data?.user && Array.isArray((data.user as { identities?: unknown[] }).identities) && (data.user as { identities: unknown[] }).identities.length === 0) {
+          const msg = 'auth.emailAlreadyUsed';
+          setError(msg);
+          setErrorKind('VALIDATION');
+          return { success: false, needsEmailConfirmation: false, error: msg, errorKind: 'VALIDATION' };
+        }
+
+        if (data?.session) {
+          await refresh();
+          return { success: true, needsEmailConfirmation: false };
+        }
+
+        setInfo('auth.checkEmailConfirmation');
+        return { success: true, needsEmailConfirmation: true };
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Échec de l'inscription.";
-        setError(message);
-        setErrorKind(kindOf(message));
+        const rawMessage = err instanceof Error ? err.message : "Échec de l'inscription.";
+        const formatted = formatAuthErrorMessage(rawMessage);
+        setError(formatted.messageKey);
+        setErrorKind(formatted.kind);
+        return {
+          success: false,
+          needsEmailConfirmation: false,
+          error: formatted.messageKey,
+          errorKind: formatted.kind,
+        };
       }
     },
     [refresh]
   );
 
   const signUpExpert = useCallback(
-    async (email: string, password: string, fullName: string, phone: string, wilaya: string, commune: string) => {
+    async (
+      email: string,
+      password: string,
+      fullName: string,
+      phone: string,
+      wilaya: string,
+      commune: string
+    ): Promise<SignUpResult> => {
       setError(null);
       setErrorKind(null);
+      setInfo(null);
+
       const cleanEmail = email.trim();
-      if (!cleanEmail || !password || !fullName.trim() || !phone.trim() || !wilaya.trim()) {
-        setError('Email, mot de passe, nom, téléphone et wilaya sont requis.');
+      const cleanName = fullName.trim();
+      const cleanPhone = phone.trim();
+      const cleanWilaya = wilaya.trim();
+      const cleanCommune = commune.trim();
+
+      if (!cleanEmail || !password || !cleanName || !cleanPhone || !cleanWilaya) {
+        const msg = 'auth.expertFieldsRequired';
+        setError(msg);
         setErrorKind('VALIDATION');
-        return;
+        return { success: false, needsEmailConfirmation: false, error: msg, errorKind: 'VALIDATION' };
       }
+
+      if (!EMAIL_REGEX.test(cleanEmail)) {
+        const msg = 'auth.invalidEmail';
+        setError(msg);
+        setErrorKind('VALIDATION');
+        return { success: false, needsEmailConfirmation: false, error: msg, errorKind: 'VALIDATION' };
+      }
+
+      if (password.length < 6) {
+        const msg = 'auth.passwordTooShort';
+        setError(msg);
+        setErrorKind('VALIDATION');
+        return { success: false, needsEmailConfirmation: false, error: msg, errorKind: 'VALIDATION' };
+      }
+
       try {
-        // Rôle EXPERT demandé ; le trigger serveur crée profiles + expert_profiles.
-        // ADMIN impossible depuis le client (garde serveur + trigger).
-        await signUpUser({
+        const data = await signUpUser({
           email: cleanEmail,
           password,
           role: 'EXPERT',
-          fullName: fullName.trim(),
-          phone: phone.trim(),
-          wilaya: wilaya.trim(),
-          commune: commune.trim() || 'Alger-Centre',
+          fullName: cleanName,
+          phone: cleanPhone,
+          wilaya: cleanWilaya,
+          commune: cleanCommune || 'Alger-Centre',
         });
-        await refresh();
+
+        if (data?.user && Array.isArray((data.user as { identities?: unknown[] }).identities) && (data.user as { identities: unknown[] }).identities.length === 0) {
+          const msg = 'auth.emailAlreadyUsed';
+          setError(msg);
+          setErrorKind('VALIDATION');
+          return { success: false, needsEmailConfirmation: false, error: msg, errorKind: 'VALIDATION' };
+        }
+
+        if (data?.session) {
+          await refresh();
+          return { success: true, needsEmailConfirmation: false };
+        }
+
+        setInfo('auth.checkEmailConfirmation');
+        return { success: true, needsEmailConfirmation: true };
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Échec de l'inscription expert.";
-        setError(message);
-        setErrorKind(kindOf(message));
+        const rawMessage = err instanceof Error ? err.message : "Échec de l'inscription expert.";
+        const formatted = formatAuthErrorMessage(rawMessage);
+        setError(formatted.messageKey);
+        setErrorKind(formatted.kind);
+        return {
+          success: false,
+          needsEmailConfirmation: false,
+          error: formatted.messageKey,
+          errorKind: formatted.kind,
+        };
       }
     },
     [refresh]
@@ -202,6 +360,7 @@ export function BuyerAuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setError(null);
       setErrorKind(null);
+      setInfo(null);
     }
   }, []);
 
@@ -216,6 +375,9 @@ export function BuyerAuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         error,
         errorKind,
+        info,
+        clearError,
+        setInfo,
         signIn,
         signUpBuyer,
         signUpExpert,
