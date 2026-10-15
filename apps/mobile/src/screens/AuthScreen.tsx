@@ -1,8 +1,8 @@
 /**
  * P7.2/P7.10/P7.32.2 — AuthScreen : Inscription & Connexion sécurisées avec gestion Cas A/B/C.
  */
-import React, { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { BackHandler, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { AlertTriangle, CheckCircle2, Lock } from 'lucide-react-native';
 import { useBuyerAuth } from '../auth/BuyerAuthContext';
 import { Button } from '../components/ui/Button';
@@ -39,6 +39,17 @@ export function AuthScreen() {
     clearError();
     setInfo(null);
   };
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (mode === 'signup') {
+        switchMode('signin');
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [mode]);
 
   const submit = async () => {
     if (busy || isLoading) return;

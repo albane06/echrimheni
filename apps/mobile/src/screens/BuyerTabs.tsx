@@ -2,8 +2,16 @@
  * P7.2/P7.10 — Shell buyer : 4 onglets persistants + vues empilées
  * (détail, création guidée/héritée, paiement). Navigation d'état uniquement.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, Text, View, I18nManager } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  AppState,
+  type AppStateStatus,
+  BackHandler,
+  Pressable,
+  Text,
+  View,
+  I18nManager,
+} from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { BuyerScreen } from './BuyerScreen';
 import { CreateInspectionScreen } from './CreateInspectionScreen';
@@ -50,6 +58,9 @@ export function BuyerTabs() {
   const [createTab, setCreateTab] = useState<'catalogue' | 'notifs'>('catalogue');
   const [unread, setUnread] = useState(false);
 
+  const createCancelRef = useRef<(() => void) | null>(null);
+  const lastBackgroundAt = useRef<number | null>(null);
+
   const refreshUnread = useCallback(async () => {
     try {
       const notifs = ((await getAdminNotifications()) ?? []) as { read_at?: string | null }[];
@@ -62,6 +73,65 @@ export function BuyerTabs() {
   useEffect(() => {
     if (!creating && !selectedBookingId && !payBookingId) void refreshUnread();
   }, [tab, creating, selectedBookingId, payBookingId, refreshUnread]);
+
+  // P7.37 — Reprise arrière-plan : retour propre à l'accueil si inactif > 15 min sans saisie non sauvegardée
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background') {
+        lastBackgroundAt.current = Date.now();
+      } else if (nextState === 'active') {
+        const now = Date.now();
+        const bgDuration = lastBackgroundAt.current ? now - lastBackgroundAt.current : 0;
+        lastBackgroundAt.current = null;
+        if (bgDuration > 15 * 60 * 1000 && creating !== 'new') {
+          setPayBookingId(null);
+          setSelectedBookingId(null);
+          setCreating(null);
+          setTab('home');
+        }
+      }
+    });
+    return () => sub.remove();
+  }, [creating]);
+
+  // P7.37 — Gestionnaire unifié du bouton physique Retour Android (BackHandler)
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (payBookingId) {
+        setPayBookingId(null);
+        setSelectedBookingId(payBookingId);
+        return true;
+      }
+      if (creating === 'new') {
+        if (createCancelRef.current) {
+          createCancelRef.current();
+        } else {
+          setCreating(null);
+        }
+        return true;
+      }
+      if (creating === 'notifs') {
+        setCreating(null);
+        void refreshUnread();
+        return true;
+      }
+      if (creating === 'legacy') {
+        setCreating(null);
+        return true;
+      }
+      if (selectedBookingId) {
+        setSelectedBookingId(null);
+        return true;
+      }
+      if (tab !== 'home') {
+        setTab('home');
+        return true;
+      }
+      // Sur l'accueil sans sous-écran : comportement Android standard (mise en arrière-plan)
+      return false;
+    });
+    return () => sub.remove();
+  }, [payBookingId, creating, selectedBookingId, tab, refreshUnread]);
 
   const userName = profile && 'full_name' in profile && typeof profile.full_name === 'string'
     ? profile.full_name.split(' ')[0]
@@ -92,7 +162,14 @@ export function BuyerTabs() {
   if (payBookingId) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg.app }}>
-        <Header title={t('payment.title')} showLogo={false} />
+        <Header
+          title={t('payment.title')}
+          showLogo={false}
+          onBack={() => {
+            setPayBookingId(null);
+            setSelectedBookingId(payBookingId);
+          }}
+        />
         <PaymentScreen
           bookingId={payBookingId}
           onDone={() => {
@@ -102,7 +179,6 @@ export function BuyerTabs() {
           }}
           onBack={() => {
             setPayBookingId(null);
-            setTab('requests');
             setSelectedBookingId(payBookingId);
           }}
         />
@@ -113,9 +189,25 @@ export function BuyerTabs() {
   if (creating === 'new') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg.app }}>
-        <Header title={t('create.newTitle')} showLogo={false} />
+        <Header
+          title={t('create.newTitle')}
+          showLogo={false}
+          onBack={() => {
+            if (createCancelRef.current) {
+              createCancelRef.current();
+            } else {
+              setCreating(null);
+            }
+          }}
+        />
         <View style={{ flex: 1, paddingHorizontal: spacing.screen, paddingTop: 12 }}>
-          <CreateInspectionScreen onDone={finishNew} onCancel={() => setCreating(null)} />
+          <CreateInspectionScreen
+            onDone={finishNew}
+            onCancel={() => setCreating(null)}
+            onBackRef={(handler) => {
+              createCancelRef.current = handler;
+            }}
+          />
         </View>
       </View>
     );
@@ -124,13 +216,13 @@ export function BuyerTabs() {
   if (creating === 'notifs') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg.app }}>
-        <Header title={t('notifications.title')} showLogo={false} />
-        <BackRow
+        <Header
+          title={t('notifications.title')}
+          showLogo={false}
           onBack={() => {
             setCreating(null);
             void refreshUnread();
           }}
-          label={t('create.backHome')}
         />
         <NotificationsScreen
           onBack={() => {
@@ -145,7 +237,11 @@ export function BuyerTabs() {
   if (creating === 'legacy') {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg.app }}>
-        <Header title={createTab === 'notifs' ? t('notifications.title') : t('create.newTitle')} showLogo={false} />
+        <Header
+          title={createTab === 'notifs' ? t('notifications.title') : t('create.newTitle')}
+          showLogo={false}
+          onBack={() => setCreating(null)}
+        />
         <BackRow onBack={() => setCreating(null)} label={t('create.backHome')} />
         <BuyerScreen initialTab={createTab} />
       </View>
@@ -155,7 +251,11 @@ export function BuyerTabs() {
   if (selectedBookingId) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg.app }}>
-        <Header title={t('requests.title')} showLogo={false} />
+        <Header
+          title={t('requests.title')}
+          showLogo={false}
+          onBack={() => setSelectedBookingId(null)}
+        />
         <RequestDetailScreen
           bookingId={selectedBookingId}
           onBack={() => setSelectedBookingId(null)}

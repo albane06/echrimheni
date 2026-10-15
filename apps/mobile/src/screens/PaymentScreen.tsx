@@ -4,7 +4,7 @@
  * stable, vérification serveur avant succès. Aucune donnée bancaire.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { BackHandler, ScrollView, Text, View } from 'react-native';
 import { CheckCircle2, Lock, ShieldCheck } from 'lucide-react-native';
 import {
   getActiveServices,
@@ -105,6 +105,14 @@ export function PaymentScreen({
     void load();
   }, [load, lang]);
 
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onBack]);
+
   const confirm = useCallback(async () => {
     if (paying.current) return;
     if (!booking) return;
@@ -204,6 +212,11 @@ export function PaymentScreen({
                 onPress={() => void confirm()}
                 loading={phase === 'paying'}
               />
+              {phase === 'ready' ? (
+                <View style={{ marginTop: spacing.sm }}>
+                  <Button title={t('payment.backToRequest')} variant="outline" onPress={onBack} />
+                </View>
+              ) : null}
             </View>
           )}
           <View style={{ marginTop: spacing.lg }}>

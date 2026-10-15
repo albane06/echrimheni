@@ -3,7 +3,7 @@
  * retour dès l'écran 2, « Passer » secondaire, « Commencer » primary.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
+import { Animated, BackHandler, Pressable, ScrollView, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FileCheck2, ShieldCheck, UserCheck, type LucideIcon } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -59,6 +59,17 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
       Animated.timing(slide, { toValue: 0, duration: 220, useNativeDriver: true }),
     ]).start();
   }, [index, fade, slide]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (index > 0) {
+        setIndex((prev) => prev - 1);
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [index]);
 
   const finish = () => {
     void Haptics.selectionAsync().catch(() => undefined);

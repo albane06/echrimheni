@@ -11,7 +11,7 @@ import {
   type DimensionValue,
   type ViewStyle,
 } from 'react-native';
-import { Bell, ClipboardList, FileCheck2, Home, User, type LucideIcon } from 'lucide-react-native';
+import { ArrowLeft, Bell, ClipboardList, FileCheck2, Home, User, type LucideIcon } from 'lucide-react-native';
 import { colors, radius, spacing, touch, type } from '../../theme/tokens';
 import { maxFontSizeMultiplier } from '../../theme/tokens';
 import { Logo } from '../Logo';
@@ -23,14 +23,18 @@ export function Header({
   showLogo = true,
   hasUnread = false,
   onBell,
+  onBack,
+  backAccessibilityLabel,
 }: {
   variant?: 'light' | 'brand';
   title?: string;
   showLogo?: boolean;
   hasUnread?: boolean;
   onBell?: () => void;
+  onBack?: () => void;
+  backAccessibilityLabel?: string;
 }) {
-  const { t, T } = useLanguage();
+  const { t, T, isRTL } = useLanguage();
   const dark = variant === 'brand';
   return (
     <View
@@ -45,11 +49,41 @@ export function Header({
         borderBottomColor: colors.border.default,
       }}
     >
-      {showLogo ? (
-        <Logo variant="full" tone={dark ? 'white' : 'color'} height={28} />
-      ) : (
-        <Text style={[T.h3, { color: dark ? colors.text.onDark : colors.text.primary }]}>{title ?? ''}</Text>
-      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+        {onBack ? (
+          <Pressable
+            onPress={onBack}
+            accessibilityRole="button"
+            accessibilityLabel={backAccessibilityLabel ?? t('common.back')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{
+              width: touch.min,
+              height: touch.min,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginStart: -8,
+              marginEnd: 4,
+            }}
+          >
+            <ArrowLeft
+              size={22}
+              color={dark ? '#FFFFFF' : colors.text.primary}
+              strokeWidth={2}
+              style={isRTL ? { transform: [{ scaleX: -1 }] } : null}
+            />
+          </Pressable>
+        ) : null}
+        {showLogo ? (
+          <Logo variant="full" tone={dark ? 'white' : 'color'} height={28} />
+        ) : (
+          <Text
+            numberOfLines={1}
+            style={[T.h3, { color: dark ? colors.text.onDark : colors.text.primary, flex: 1 }]}
+          >
+            {title ?? ''}
+          </Text>
+        )}
+      </View>
       {onBell ? (
         <Pressable
           onPress={onBell}

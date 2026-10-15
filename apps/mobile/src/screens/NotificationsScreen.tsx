@@ -5,6 +5,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  BackHandler,
   I18nManager,
   Pressable,
   RefreshControl,
@@ -64,6 +65,15 @@ export function NotificationsScreen({
   useEffect(() => {
     void loadNotifs();
   }, [loadNotifs]);
+
+  useEffect(() => {
+    if (!onBack) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onBack]);
 
   const handleMarkRead = async (id: string) => {
     setNotifs((prev) =>

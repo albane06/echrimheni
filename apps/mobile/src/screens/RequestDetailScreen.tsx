@@ -4,7 +4,7 @@
  * pull-to-refresh. Expert/photos affichés si résolvables, sinon omis.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { BackHandler, Image, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ArrowLeft, Star } from 'lucide-react-native';
 import { I18nManager } from 'react-native';
 import {
@@ -139,6 +139,14 @@ export function RequestDetailScreen({
   useEffect(() => {
     void load(false);
   }, [load, lang]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onBack]);
 
   const tracking = booking
     ? trackingForStatus(booking.status, { createdAt: booking.created_at, scheduledAt: booking.scheduled_at }, lang)

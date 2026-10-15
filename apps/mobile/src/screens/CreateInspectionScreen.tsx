@@ -50,9 +50,11 @@ type Step = 1 | 2 | 3 | 4 | 5;
 export function CreateInspectionScreen({
   onDone,
   onCancel,
+  onBackRef,
 }: {
   onDone: (bookingId: string) => void;
   onCancel: () => void;
+  onBackRef?: (handler: () => void) => void;
 }) {
   const { t, T } = useLanguage();
   const [step, setStep] = useState<Step>(1);
@@ -184,18 +186,29 @@ export function CreateInspectionScreen({
     ]);
   }, [dirty, onCancel, t]);
 
+  const handleBack = useCallback(() => {
+    if (success) {
+      onDone(success.bookingId);
+      return;
+    }
+    if (step > 1) {
+      goTo((step - 1) as Step);
+      return;
+    }
+    confirmCancel();
+  }, [success, step, goTo, confirmCancel, onDone]);
+
+  useEffect(() => {
+    onBackRef?.(handleBack);
+  }, [onBackRef, handleBack]);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (success) return false;
-      if (step > 1) {
-        goTo((step - 1) as Step);
-        return true;
-      }
-      confirmCancel();
+      handleBack();
       return true;
     });
     return () => sub.remove();
-  }, [step, success, goTo, confirmCancel]);
+  }, [handleBack]);
 
   const pickPhoto = useCallback(async () => {
     if (photos.length >= LISTING_PHOTOS_MAX_COUNT) return;
