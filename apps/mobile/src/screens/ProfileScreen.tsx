@@ -3,7 +3,7 @@
  * (Français/العربية/English, persistant). P6.7-B : profil propre uniquement.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, Pressable, View } from 'react-native';
+import { Alert, ScrollView, Text, TouchableOpacity, Pressable, View } from 'react-native';
 import { Bell, Globe, HelpCircle, LogOut, User } from 'lucide-react-native';
 import {
   getCategories,
@@ -299,7 +299,16 @@ export function ProfileScreen() {
             <Text style={[T.body, { color: colors.text.secondary }]}>{t('profileRows.help')}</Text>
           </View>
           <TouchableOpacity
-            onPress={() => void signOut()}
+            onPress={() => {
+              Alert.alert(
+                t('expert.signOutConfirmTitle'),
+                t('expert.signOutConfirmMsg'),
+                [
+                  { text: t('expert.signOutCancel'), style: 'cancel' },
+                  { text: t('expert.signOutConfirm'), style: 'destructive', onPress: () => void signOut() },
+                ]
+              );
+            }}
             accessibilityRole="button"
             accessibilityLabel={t('profileRows.logout')}
             style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 12, minHeight: 48 }}

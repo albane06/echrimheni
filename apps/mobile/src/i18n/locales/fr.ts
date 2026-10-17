@@ -356,6 +356,14 @@ export const fr = {
     refuseReasonTitle: 'Motif du refus (optionnel)',
     disputeReasonTitle: 'Motif du litige (min. 5 caractères)',
     ratingLine: 'Note : {rating} / 5',
+    // P7.40 — Navigation structurée Expert
+    tabMissions: 'Missions',
+    tabNotifications: 'Notifs',
+    tabProfile: 'Profil',
+    signOutConfirmTitle: 'Se déconnecter ?',
+    signOutConfirmMsg: 'Vous serez redirigé vers l\'écran de connexion.',
+    signOutConfirm: 'Se déconnecter',
+    signOutCancel: 'Annuler',
   },
   expertOnboarding: {
     badge: 'DEVENIR EXPERT • CANDIDATURE',

@@ -358,6 +358,14 @@ export const en: FrDict = {
     disputeReasonTitle: 'Dispute reason (min. 5 characters)',
     ratingLine: 'Rating: {rating} / 5',
     backToMissionsPlain: 'Back to missions',
+    // P7.40 — Structured Expert Navigation
+    tabMissions: 'Missions',
+    tabNotifications: 'Notifs',
+    tabProfile: 'Profile',
+    signOutConfirmTitle: 'Sign out?',
+    signOutConfirmMsg: 'You will be redirected to the sign-in screen.',
+    signOutConfirm: 'Sign out',
+    signOutCancel: 'Cancel',
   },
   expertOnboarding: {
     badge: 'BECOME AN EXPERT • APPLICATION',

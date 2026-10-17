@@ -358,6 +358,14 @@ export const ar: FrDict = {
     disputeReasonTitle: 'سبب النزاع (5 أحرف على الأقل)',
     ratingLine: 'التقييم: {rating} / 5',
     backToMissionsPlain: 'العودة إلى المهام',
+    // P7.40 — Navigation structurée Expert
+    tabMissions: 'المهام',
+    tabNotifications: 'إشعارات',
+    tabProfile: 'حسابي',
+    signOutConfirmTitle: 'تسجيل الخروج؟',
+    signOutConfirmMsg: 'سيتم توجيهك إلى شاشة تسجيل الدخول.',
+    signOutConfirm: 'تسجيل الخروج',
+    signOutCancel: 'إلغاء',
   },
   expertOnboarding: {
     badge: 'اصبح خبيرًا • الترشيح',
