@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { inflateSync } from 'node:zlib';
 import { generateInspectionPdf, ReportPdfData } from '../packages/database/src/services/pdf.js';
 
 describe('Real A4 PDF Report Generation', () => {
@@ -92,5 +93,30 @@ describe('Real A4 PDF Report Generation', () => {
     // Check PDF magic header
     const header = pdfBuffer.slice(0, 5).toString('ascii');
     expect(header).toBe('%PDF-');
+  });
+
+  it('renders major defects when supplied', async () => {
+    const pdfBuffer = await generateInspectionPdf({
+      reportNumber: 'RPT-MAJOR',
+      date: '1 Octobre 2026',
+      score: 40,
+      vehicle: { make: 'Dacia', model: 'Logan', year: 2020, location: 'Alger' },
+      expert: { fullName: 'Expert', phone: '', wilaya: '' },
+      summary: 'Défauts relevés.',
+      positivePoints: [],
+      watchpoints: [],
+      majorDefects: ['Freinage à réparer'],
+      criticalDefects: [],
+      sections: []
+    });
+
+    const source = pdfBuffer.toString('latin1');
+    const start = source.indexOf('stream\n') + 'stream\n'.length;
+    const end = source.indexOf('\nendstream', start);
+    const pageText = inflateSync(pdfBuffer.subarray(start, end)).toString('latin1');
+    // PDFKit encode le texte WinAnsi en hexadécimal et peut le fragmenter
+    // pour appliquer le kerning : ces fragments prouvent le rendu effectif.
+    expect(pageText).toMatch(/444546[\s\S]*555453204d414a45555253/);
+    expect(pageText).toMatch(/2d2046[\s\S]*7265696e61676520e02072e97061726572/);
   });
 });

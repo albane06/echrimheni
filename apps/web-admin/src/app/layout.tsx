@@ -1,25 +1,19 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Navigation } from '../components/Navigation';
 import { AdminAuthProvider } from '../components/AdminGuard';
+import { ClientLayout } from '../components/ClientLayout';
 
 export const metadata: Metadata = {
-  title: 'EchriMheni — Administration & Verification Experts',
-  description: 'Plateforme algerienne d inspection et diagnostic pre-achat'
+  title: 'EchriMheni — Administration & Vérification Experts',
+  description: 'Plateforme algérienne d\'inspection et diagnostic pré-achat'
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className="h-full bg-slate-950 text-slate-100">
-      <body className="min-h-full flex flex-col font-sans antialiased">
+    <html lang="fr" className="h-full bg-slate-50">
+      <body className="min-h-full font-sans antialiased">
         <AdminAuthProvider>
-          <Navigation />
-          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-            {children}
-          </main>
-          <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
-            EchriMheni MVP v1.0 • Module d Administration et Securite
-          </footer>
+          <ClientLayout>{children}</ClientLayout>
         </AdminAuthProvider>
       </body>
     </html>

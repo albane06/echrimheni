@@ -5,10 +5,25 @@ dist
 .turbo
 .expo
 *.log
+.DS_Store
+coverage
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Environment files
 .env
-.env.local
+.env*.local
+.env.production
+.env.preview
+.env.development
+.env.test
+!.env.example
+!.env.local.example
+
 # Supabase CLI link state (contient l'URL pooler locale) — ne jamais committer
 supabase/.temp/
 packages/database/supabase/.temp/
-.DS_Store
-coverage

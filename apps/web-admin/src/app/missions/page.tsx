@@ -1,55 +1,143 @@
-﻿'use client';
+'use client';
 
-import { INITIAL_MISSIONS } from '../../lib/mock-admin-data';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { getAllMissions } from '@echrimheni/database';
+import { Badge, SearchInput, Tabs, DataTable, LoadingState, ErrorState, Button } from '@/components/ui';
+import { BookingStatusBadge } from '@/components/ui/StatusBadge';
+import { formatCurrency, formatDate } from '@/lib/utils';
+
+type MissionRow = {
+  id: string;
+  title: string;
+  buyer_name: string;
+  expert_name: string;
+  status: string;
+  score: number | null;
+  price: number;
+  date: string;
+};
+
+function normalizeMissions(data: any[]): MissionRow[] {
+  return data.map((m: any) => ({
+    id: m.id,
+    title: m.listings?.title || `${m.listings?.make || ''} ${m.listings?.model || ''} (${m.listings?.year || ''})`,
+    buyer_name: m.buyer?.full_name || 'Acheteur',
+    expert_name: m.expert?.profiles?.full_name || 'Expert',
+    status: m.status,
+    score: m.reports?.[0]?.score ?? null,
+    price: m.price_total || 0,
+    date: m.created_at,
+  }));
+}
+
+const statusTabs = [
+  { label: 'Toutes', value: 'ALL' },
+  { label: 'En cours', value: 'IN_PROGRESS' },
+  { label: 'Terminées', value: 'COMPLETED' },
+  { label: 'Litiges', value: 'DISPUTED' },
+  { label: 'Annulées', value: 'CANCELLED' },
+];
 
 export default function MissionsPage() {
+  const router = useRouter();
+  const [missions, setMissions] = useState<MissionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('ALL');
+  const [expiring, setExpiring] = useState(false);
+  const [expireResult, setExpireResult] = useState<string | null>(null);
+
+  const handleExpireStale = async () => {
+    setExpiring(true);
+    setExpireResult(null);
+    try {
+      const res = await fetch('/api/admin/expire-bookings', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Expiration impossible.');
+      const count = (json as any)?.expired_count ?? 0;
+      setExpireResult(`${count} demande(s) expirée(s).`);
+      await loadMissions();
+    } catch (err: any) {
+      setExpireResult(err?.message || 'Expiration impossible.');
+    } finally {
+      setExpiring(false);
+    }
+  };
+
+  useEffect(() => { loadMissions(); }, []);
+
+  const loadMissions = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getAllMissions();
+      setMissions(normalizeMissions(data));
+    } catch (err: any) {
+      console.error('[Missions] Erreur :', err.message);
+      setError('Impossible de charger les missions.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = missions
+    .filter(m => {
+      if (activeTab === 'ALL') return true;
+      if (activeTab === 'IN_PROGRESS') return ['SCHEDULED', 'IN_PROGRESS', 'INSPECTION_COMPLETED'].includes(m.status);
+      if (activeTab === 'COMPLETED') return m.status === 'COMPLETED';
+      if (activeTab === 'CANCELLED') return m.status === 'CANCELLED';
+      if (activeTab === 'DISPUTED') return m.status === 'DISPUTED';
+      return true;
+    })
+    .filter(m => !search || m.title.toLowerCase().includes(search.toLowerCase()) || m.buyer_name.toLowerCase().includes(search.toLowerCase()));
+
+  if (loading) return <LoadingState message="Chargement des missions..." />;
+  if (error) return <ErrorState message={error} onRetry={loadMissions} />;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Supervision des Missions</h1>
-        <p className="text-sm text-slate-400 mt-1">Suivi de l état d avancement des inspections automobiles et consultation des rapports.</p>
-      </div>
+      <Badge variant="success" dot>Données Supabase</Badge>
 
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-800/60 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
-            <tr>
-              <th className="p-4">Mission / Véhicule</th>
-              <th className="p-4">Acheteur</th>
-              <th className="p-4">Expert Attribué</th>
-              <th className="p-4">Date</th>
-              <th className="p-4">Statut</th>
-              <th className="p-4">Score</th>
-              <th className="p-4 text-right">Rapport</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60 text-slate-300">
-            {INITIAL_MISSIONS.map(m => (
-              <tr key={m.id} className="hover:bg-slate-800/30 transition">
-                <td className="p-4 font-semibold text-white">{m.vehicle}</td>
-                <td className="p-4">{m.buyer_name}</td>
-                <td className="p-4">{m.expert_name}</td>
-                <td className="p-4 text-slate-400">{m.date}</td>
-                <td className="p-4">
-                  <span className={px-2 py-0.5 rounded font-bold uppercase }>
-                    {m.status}
-                  </span>
-                </td>
-                <td className="p-4 font-bold text-white">
-                  {m.score !== null ? ${m.score} / 100 : 'En cours...'}
-                </td>
-                <td className="p-4 text-right">
-                  {m.status === 'COMPLETED' ? (
-                    <span className="text-emerald-400 font-semibold cursor-pointer hover:underline">Consulter</span>
-                  ) : (
-                    <span className="text-slate-500">Non disponible</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <Tabs
+          tabs={statusTabs.map(t => ({
+            ...t,
+            count: t.value === 'ALL' ? missions.length : missions.filter(m => {
+              if (t.value === 'IN_PROGRESS') return ['SCHEDULED', 'IN_PROGRESS', 'INSPECTION_COMPLETED'].includes(m.status);
+              return m.status === t.value;
+            }).length,
+          }))}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+        />
+        <SearchInput value={search} onChange={setSearch} placeholder="Rechercher par véhicule ou acheteur..." className="w-72" />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => void handleExpireStale()} loading={expiring}>
+            Expirer les demandes périmées
+          </Button>
+        </div>
       </div>
+      {expireResult && <p className="text-sm text-slate-600">{expireResult}</p>}
+
+      <DataTable<MissionRow>
+        columns={[
+          { key: 'title', header: 'Mission / Objet', render: (r) => <span className="font-semibold text-slate-900">{r.title}</span> },
+          { key: 'buyer', header: 'Acheteur', render: (r) => <span className="text-slate-600">{r.buyer_name}</span> },
+          { key: 'expert', header: 'Expert', render: (r) => <span className="text-slate-600">{r.expert_name}</span> },
+          { key: 'date', header: 'Date', render: (r) => <span className="text-xs text-slate-400">{formatDate(r.date)}</span> },
+          { key: 'status', header: 'Statut', render: (r) => <BookingStatusBadge status={r.status as any} /> },
+          { key: 'score', header: 'Score', render: (r) => r.score !== null ? (
+            <span className={`font-bold ${r.score >= 75 ? 'text-emerald-600' : r.score >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{r.score}/100</span>
+          ) : <span className="text-slate-400">—</span> },
+          { key: 'price', header: 'Prix', render: (r) => <span className="text-slate-600">{formatCurrency(r.price)}</span>, className: 'text-right' },
+        ]}
+        data={filtered}
+        keyExtractor={(r) => r.id}
+        onRowClick={(r) => router.push(`/missions/${r.id}`)}
+        emptyMessage="Aucune mission enregistrée."
+      />
     </div>
   );
 }
