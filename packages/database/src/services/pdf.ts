@@ -30,6 +30,32 @@ export interface ReportPdfData {
     location: string;
     askingPrice?: number;
   };
+  land?: {
+    parcelType: string;
+    surfaceAreaM2: number;
+    cadastralRef?: string;
+    topography?: string;
+    utilities?: string[];
+    accessType?: string;
+    askingPrice?: number;
+    location: string;
+    gpsCoordinates?: string;
+    propertyPaper?: string;
+  };
+  property?: {
+    propertyType: string;
+    livingAreaM2: number;
+    totalAreaM2?: number;
+    rooms?: number;
+    floors?: number;
+    constructionYear?: number;
+    condition?: string;
+    askingPrice?: number;
+    location: string;
+    gpsCoordinates?: string;
+    propertyPaper?: string;
+  };
+  disclaimerText?: string;
   expert: {
     fullName: string;
     phone: string;
@@ -77,10 +103,14 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
       const scoreColor = data.score >= 80 ? '#059669' : data.score >= 50 ? '#d97706' : '#dc2626';
       doc.fontSize(24).fillColor(scoreColor).text(data.score + ' / 100', 380, 112, { align: 'right' });
 
-      // Vehicle, Device or Appliance & Inspector Information Box
+      // Object & Inspector Information Box
       let itemTitle = '1. Informations du Bien Verifie & de l Expert';
       if (data.vehicle) {
         itemTitle = '1. Informations du Vehicule & de l Expert';
+      } else if (data.land) {
+        itemTitle = '1. Caracteristiques du Terrain & de l Expert';
+      } else if (data.property) {
+        itemTitle = '1. Caracteristiques du Bien Bati & de l Expert';
       } else if (data.device) {
         itemTitle = '1. Informations de l Appareil Smartphone & de l Expert';
       } else if (data.appliance) {
@@ -93,6 +123,17 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
         doc.text('Vehicule : ' + data.vehicle.make + ' ' + data.vehicle.model + ' (' + data.vehicle.year + ')', 40, 195);
         doc.text('Kilometrage : ' + (data.vehicle.mileage ? data.vehicle.mileage + ' km' : 'Non renseigne'), 40, 210);
         doc.text('Localisation : ' + data.vehicle.location, 40, 225);
+      } else if (data.land) {
+        doc.text('Terrain : ' + data.land.parcelType + ' (' + data.land.surfaceAreaM2 + ' m2)', 40, 195);
+        const cadastreText = (data.land.propertyPaper ? data.land.propertyPaper + ' | ' : '') + 'Cadastre : ' + (data.land.cadastralRef || 'N/C');
+        doc.text(cadastreText + (data.land.gpsCoordinates ? ' | GPS : ' + data.land.gpsCoordinates : ''), 40, 210);
+        const utils = data.land.utilities && data.land.utilities.length > 0 ? data.land.utilities.join(', ') : 'Non viabilise';
+        doc.text('Reseaux : ' + utils + ' | Localisation : ' + data.land.location, 40, 225);
+      } else if (data.property) {
+        doc.text('Bien Bati : ' + data.property.propertyType + ' (' + data.property.livingAreaM2 + ' m2)', 40, 195);
+        const details = (data.property.rooms ? data.property.rooms + ' pieces' : '') + (data.property.floors !== undefined ? ' | Etages : ' + data.property.floors : '') + (data.property.condition ? ' | Etat : ' + data.property.condition : '');
+        doc.text(details || 'Habitation', 40, 210);
+        doc.text('Localisation : ' + data.property.location + (data.property.gpsCoordinates ? ' | GPS : ' + data.property.gpsCoordinates : ''), 40, 225);
       } else if (data.device) {
         doc.text('Appareil : ' + data.device.brand + ' ' + data.device.model + (data.device.storage ? ' (' + data.device.storage + ')' : ''), 40, 195);
         doc.text('N de Serie / IMEI : ' + (data.device.imeiOrSerial || 'Verifie conforme'), 40, 210);
@@ -183,7 +224,7 @@ export async function generateInspectionPdf(data: ReportPdfData): Promise<Buffer
       }
       doc.rect(40, 710, 515, 65).fillAndStroke('#fef2f2', '#fecaca');
       doc.fontSize(8).fillColor('#991b1b').text('MENTION LEGALE DE LIMITATION DE RESPONSABILITE :', 50, 718);
-      doc.fontSize(7).fillColor('#7f1d1d').text(LEGAL_DISCLAIMER, 50, 730, { width: 495 });
+      doc.fontSize(7).fillColor('#7f1d1d').text(data.disclaimerText || LEGAL_DISCLAIMER, 50, 730, { width: 495 });
 
       doc.end();
     } catch (err) {

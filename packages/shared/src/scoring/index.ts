@@ -20,7 +20,23 @@ export interface InspectionScoreResult {
 export const LEGAL_DISCLAIMER =
   "L’inspection reflète l’état constaté au moment de l’intervention et les contrôles effectivement réalisés. Elle ne constitue pas une garantie absolue de l’état futur de l’objet et ne remplace pas, lorsque nécessaire, une expertise juridique, réglementaire ou spécialisée.";
 
-export function calculateInspectionScore(answers: AnswerWithItem[]): InspectionScoreResult {
+export const LEGAL_DISCLAIMER_TERRAIN =
+  "L’inspection foncière / terrain constitue une constatation visuelle et technique des éléments apparents et des réseaux observables au moment de la visite. Elle ne constitue en aucun cas un bornage contradictoire de géomètre-expert, ni une garantie juridique de titre de propriété, de constructibilité ou d'alignement cadastral définitif.";
+
+export const LEGAL_DISCLAIMER_IMMOBILIER =
+  "L’inspection immobilière constitue un état des lieux visuel des désordres apparents et du fonctionnement des équipements testés au jour de la visite. Elle ne constitue ni un diagnostic de structure approfondi (sondages destructifs), ni une expertise en vices cachés, ni une garantie juridique de propriété ou de conformité d’urbanisme.";
+
+export function getLegalDisclaimer(categoryCode?: string): string {
+  const code = categoryCode?.toLowerCase();
+  if (code === 'terrain') return LEGAL_DISCLAIMER_TERRAIN;
+  if (code === 'immobilier') return LEGAL_DISCLAIMER_IMMOBILIER;
+  return LEGAL_DISCLAIMER;
+}
+
+export function calculateInspectionScore(
+  answers: AnswerWithItem[],
+  categoryCode?: string
+): InspectionScoreResult {
   let totalWeight = 0;
   let earnedScore = 0;
 
@@ -78,7 +94,7 @@ export function calculateInspectionScore(answers: AnswerWithItem[]): InspectionS
     major_defects,
     critical_defects,
     has_critical_defects: critical_defects.length > 0,
-    disclaimer: LEGAL_DISCLAIMER
+    disclaimer: getLegalDisclaimer(categoryCode)
   };
 }
 

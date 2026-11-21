@@ -70,6 +70,12 @@ export function ReviewStep({
             <Text style={[T.bodyStrong, { color: colors.text.primary, marginTop: 2 }]}>{object.mileage.trim()}</Text>
           </View>
         ) : null}
+        {object.surfaceM2.trim() ? (
+          <View style={{ marginBottom: spacing.sm }}>
+            <Text style={[T.caption, { color: colors.text.secondary }]}>{t('create.surface')}</Text>
+            <Text style={[T.bodyStrong, { color: colors.text.primary, marginTop: 2 }]}>{object.surfaceM2.trim()} m²</Text>
+          </View>
+        ) : null}
         {object.askingPrice.trim() ? (
           <View style={{ marginBottom: spacing.sm }}>
             <Text style={[T.caption, { color: colors.text.secondary }]}>{t('create.price')}</Text>

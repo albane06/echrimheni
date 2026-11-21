@@ -9,6 +9,7 @@ import { Alert, BackHandler, ScrollView, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
   createBookingRequest,
+  createRealEstateListing,
   createVehicleListing,
   getActiveServices,
   getApprovedExperts,
@@ -90,7 +91,10 @@ export function CreateInspectionScreen({
   const submitted = useRef(false);
 
   const category = useMemo(() => categories.find((c) => c.id === categoryId) ?? null, [categories, categoryId]);
-  const isAutomobile = (category?.code ?? '') === 'automobile';
+  const categoryCode = (category?.code ?? '').toLowerCase();
+  const isAutomobile = categoryCode === 'automobile';
+  const isTerrain = categoryCode === 'terrain';
+  const isImmobilier = categoryCode === 'immobilier';
   const service = useMemo(() => services.find((s) => s.id === serviceId) ?? null, [services, serviceId]);
   const expert = useMemo(() => experts.find((e) => e.id === expertId) ?? null, [experts, expertId]);
   const flowState: FlowState = useMemo(
@@ -167,12 +171,12 @@ export function CreateInspectionScreen({
 
   const goTo = useCallback(
     (next: Step) => {
-      if (next > maxReached && !canEnterStep(next, flowState, isAutomobile)) return;
+      if (next > maxReached && !canEnterStep(next, flowState, categoryCode)) return;
       setStepError(null);
       setStep(next);
       setMaxReached((m) => (next > m ? next : m));
     },
-    [maxReached, flowState, isAutomobile],
+    [maxReached, flowState, categoryCode],
   );
 
   const confirmCancel = useCallback(() => {
@@ -247,7 +251,7 @@ export function CreateInspectionScreen({
       return;
     }
     if (step === 2) {
-      const err = validateObjectForm(object, isAutomobile) ?? validateListingUrl(sourceUrl, source);
+      const err = validateObjectForm(object, categoryCode) ?? validateListingUrl(sourceUrl, source);
       if (err) {
         setStepError(err);
         return;
@@ -282,20 +286,46 @@ export function CreateInspectionScreen({
     try {
       let listingId = createdListingId.current;
       if (!listingId) {
-        const listing = await createVehicleListing({
-          categoryId: categoryId as string,
-          title: object.title.trim(),
-          make: object.make.trim(),
-          model: object.model.trim(),
-          year: Number(object.year.trim()),
-          mileage: object.mileage.trim() ? Number(object.mileage.trim()) : undefined,
-          askingPrice: parsePrice(object.askingPrice),
-          locationWilaya: location.wilaya.trim(),
-          locationCommune: location.commune.trim(),
-          description: object.description.trim() || undefined,
-          listingUrl: source === 'ECHRI' ? null : sourceUrl.trim(),
-          sourcePlatform: source,
-        });
+        let listing;
+        if (isTerrain || isImmobilier) {
+          listing = await createRealEstateListing({
+            categoryId: categoryId as string,
+            domain: isTerrain ? 'TERRAIN' : 'IMMOBILIER',
+            title: object.title.trim(),
+            askingPrice: parsePrice(object.askingPrice),
+            locationWilaya: location.wilaya.trim(),
+            locationCommune: location.commune.trim(),
+            description: object.description.trim() || undefined,
+            listingUrl: source === 'ECHRI' ? null : sourceUrl.trim(),
+            sourcePlatform: source,
+            propertyType: object.propertyType.trim(),
+            surfaceM2: Number(object.surfaceM2.trim()),
+            cadastralRef: object.cadastralRef.trim() || undefined,
+            propertyPaperDeclared: object.propertyPaper.trim() || undefined,
+            gpsLat: object.gpsLat.trim() ? Number(object.gpsLat.trim()) : undefined,
+            gpsLng: object.gpsLng.trim() ? Number(object.gpsLng.trim()) : undefined,
+            topography: object.topography.trim() || undefined,
+            roadAccess: object.roadAccess.trim() || undefined,
+            rooms: object.rooms.trim() ? Number(object.rooms.trim()) : undefined,
+            floors: object.floors.trim() ? Number(object.floors.trim()) : undefined,
+            condition: object.condition.trim() || undefined,
+          });
+        } else {
+          listing = await createVehicleListing({
+            categoryId: categoryId as string,
+            title: object.title.trim(),
+            make: object.make.trim(),
+            model: object.model.trim(),
+            year: Number(object.year.trim()),
+            mileage: object.mileage.trim() ? Number(object.mileage.trim()) : undefined,
+            askingPrice: parsePrice(object.askingPrice),
+            locationWilaya: location.wilaya.trim(),
+            locationCommune: location.commune.trim(),
+            description: object.description.trim() || undefined,
+            listingUrl: source === 'ECHRI' ? null : sourceUrl.trim(),
+            sourcePlatform: source,
+          });
+        }
         listingId = (listing as { id: string }).id;
         createdListingId.current = listingId;
       }
@@ -324,7 +354,7 @@ export function CreateInspectionScreen({
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, categoryId, object, location, photos, expertId, serviceId, datePart, timePart, source, sourceUrl, t]);
+  }, [isSubmitting, categoryId, isTerrain, isImmobilier, object, location, photos, expertId, serviceId, datePart, timePart, source, sourceUrl, t]);
 
   if (success) {
     return (

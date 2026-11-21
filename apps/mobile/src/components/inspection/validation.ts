@@ -1,18 +1,39 @@
 /**
- * P7.5/P7.10 — Validation pure du formulaire de demande. Retourne des CLÉS
+ * P7.5/P7.10/P8.05 — Validation pure du formulaire de demande. Retourne des CLÉS
  * i18n (`validation.*`, résolues via `t()` à l'affichage) ou null si valide.
  * Aucune règle serveur modifiée : le serveur reste l'autorité.
- * Testée dans `tests/p7-inspection-form.test.ts`.
+ * Testée dans `tests/p7-inspection-form.test.ts` et `tests/p8-terrain-immobilier-mvp.test.ts`.
  */
 
 export interface ObjectForm {
   title: string;
   askingPrice: string;
   description: string;
+  // Biens mobiliers (automobile, électroménager, etc.)
   make: string;
   model: string;
   year: string;
   mileage: string;
+  // Foncier & Immobilier
+  propertyType: string;
+  surfaceM2: string;
+  cadastralRef: string;
+  propertyPaper: string;
+  gpsLat: string;
+  gpsLng: string;
+  // Foncier (terrain)
+  topography: string;
+  roadAccess: string;
+  hasElectricity: boolean;
+  hasWater: boolean;
+  hasGas: boolean;
+  hasSewage: boolean;
+  boundaryFenced: boolean;
+  // Bâti (immobilier)
+  rooms: string;
+  floors: string;
+  condition: string;
+  hasElevator: boolean;
 }
 
 export interface LocationForm {
@@ -127,14 +148,74 @@ export function validateMileage(raw: string, required: boolean): string | null {
   return null;
 }
 
-export function validateObjectForm(form: ObjectForm, isAutomobile: boolean): string | null {
+export function validateSurface(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return 'validation.surfaceRequired';
+  const val = Number(trimmed);
+  if (Number.isNaN(val) || val <= 0) return 'validation.surfacePositive';
+  if (val > 100000000) return 'validation.surfaceHigh';
+  return null;
+}
+
+export function validatePropertyType(raw: string): string | null {
+  if (!raw.trim()) return 'validation.propertyTypeRequired';
+  return null;
+}
+
+export function validateGpsCoordinate(raw: string, type: 'lat' | 'lng'): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const val = Number(trimmed);
+  if (Number.isNaN(val)) return 'validation.gpsInvalid';
+  if (type === 'lat' && (val < -90 || val > 90)) return 'validation.gpsRangeLat';
+  if (type === 'lng' && (val < -180 || val > 180)) return 'validation.gpsRangeLng';
+  return null;
+}
+
+export function validateGpsCoordinates(latStr: string, lngStr: string): string | null {
+  const latTrim = latStr.trim();
+  const lngTrim = lngStr.trim();
+  if (!latTrim && !lngTrim) return null;
+  if ((latTrim && !lngTrim) || (!latTrim && lngTrim)) return 'validation.gpsBothOrNone';
+  return validateGpsCoordinate(latTrim, 'lat') || validateGpsCoordinate(lngTrim, 'lng');
+}
+
+export function validateObjectForm(
+  form: ObjectForm,
+  categoryOrAuto: boolean | string | undefined = false
+): string | null {
+  const catCode = typeof categoryOrAuto === 'boolean'
+    ? (categoryOrAuto ? 'automobile' : 'autre')
+    : (categoryOrAuto?.toLowerCase() || 'autre');
+
+  if (catCode === 'terrain') {
+    return (
+      validateTitle(form.title) ??
+      validatePropertyType(form.propertyType) ??
+      validateSurface(form.surfaceM2) ??
+      validatePrice(form.askingPrice) ??
+      validateGpsCoordinates(form.gpsLat, form.gpsLng)
+    );
+  }
+
+  if (catCode === 'immobilier') {
+    return (
+      validateTitle(form.title) ??
+      validatePropertyType(form.propertyType) ??
+      validateSurface(form.surfaceM2) ??
+      validatePrice(form.askingPrice) ??
+      validateGpsCoordinates(form.gpsLat, form.gpsLng)
+    );
+  }
+
+  const isAuto = catCode === 'automobile';
   return (
     validateTitle(form.title) ??
     validatePrice(form.askingPrice) ??
     (form.make.trim() ? null : 'validation.brandRequired') ??
     (form.model.trim() ? null : 'validation.modelRequired') ??
     validateYear(form.year) ??
-    validateMileage(form.mileage, isAutomobile)
+    validateMileage(form.mileage, isAuto)
   );
 }
 
@@ -182,6 +263,23 @@ export const EMPTY_OBJECT: ObjectForm = {
   model: '',
   year: '',
   mileage: '',
+  propertyType: '',
+  surfaceM2: '',
+  cadastralRef: '',
+  propertyPaper: '',
+  gpsLat: '',
+  gpsLng: '',
+  topography: '',
+  roadAccess: '',
+  hasElectricity: false,
+  hasWater: false,
+  hasGas: false,
+  hasSewage: false,
+  boundaryFenced: false,
+  rooms: '',
+  floors: '',
+  condition: '',
+  hasElevator: false,
 };
 
 export const EMPTY_LOCATION: LocationForm = { wilaya: '', commune: '', address: '' };
@@ -190,12 +288,12 @@ export const EMPTY_LOCATION: LocationForm = { wilaya: '', commune: '', address: 
 export function canEnterStep(
   step: 1 | 2 | 3 | 4 | 5,
   state: FlowState,
-  isAutomobile: boolean,
+  categoryOrAuto: boolean | string | undefined = false,
 ): boolean {
   if (step === 1) return true;
   if (!state.categoryId) return false;
   if (step === 2) return true;
-  if (validateObjectForm(state.object, isAutomobile)) return false;
+  if (validateObjectForm(state.object, categoryOrAuto)) return false;
   if (step === 3) return true;
   if (validateLocationForm(state.location)) return false;
   if (step === 4) return true;
@@ -207,7 +305,7 @@ export function canEnterStep(
 export function isFlowDirty(state: FlowState, photoCount: number): boolean {
   return (
     state.categoryId !== null ||
-    Object.values(state.object).some((v) => v.trim() !== '') ||
+    Object.values(state.object).some((v) => (typeof v === 'string' ? v.trim() !== '' : Boolean(v))) ||
     Object.values(state.location).some((v) => v.trim() !== '') ||
     state.serviceId !== null ||
     state.datePart.trim() !== '' ||

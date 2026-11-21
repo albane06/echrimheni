@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '../client.js';
-import { Category, Service, ExpertProfile, Listing, Booking, InspectionReport } from '@echrimheni/shared';
+import { Category, Service, ExpertProfile, Listing, Booking, InspectionReport, RealEstateDomain, ListingRealEstate } from '@echrimheni/shared';
 import { resolveAuthorId, assertServiceMatchesListing, validateScheduledAt, ServiceError } from './ownership.js';
 
 export const PAYMENT_ELIGIBLE_STATUSES = ['ACCEPTED', 'PAYMENT_PENDING'] as const;
@@ -227,6 +227,110 @@ export async function createVehicleListing(params: {
   return data as Listing;
 }
 
+export interface CreateRealEstateListingParams {
+  buyerId?: string;
+  categoryId: string;
+  domain: RealEstateDomain;
+  title: string;
+  askingPrice?: number;
+  locationWilaya: string;
+  locationCommune: string;
+  description?: string;
+  photos?: string[];
+  listingUrl?: string | null;
+  sourcePlatform?: 'ECHRI' | 'FACEBOOK_MARKETPLACE' | 'OUEDKNISS' | 'OTHER';
+  // Extension foncière / immobilière
+  propertyType: string;
+  surfaceM2: number;
+  cadastralRef?: string | null;
+  propertyPaperDeclared?: string | null;
+  gpsLat?: number | null;
+  gpsLng?: number | null;
+  utilities?: Record<string, boolean> | null;
+  topography?: string | null;
+  soilType?: string | null;
+  zoning?: string | null;
+  roadAccess?: string | null;
+  boundaryFenced?: boolean | null;
+  rooms?: number | null;
+  floors?: number | null;
+  constructionYear?: number | null;
+  condition?: string | null;
+  parkingSpaces?: number | null;
+  hasElevator?: boolean | null;
+  heatingType?: string | null;
+  notes?: string | null;
+}
+
+/**
+ * P8.05 — Création d'une annonce foncière ou immobilière avec son extension
+ * relationnelle listing_real_estate. Atomicité applicative : l'id du listing
+ * est lié directement à l'extension.
+ */
+export async function createRealEstateListing(params: CreateRealEstateListingParams): Promise<Listing> {
+  const supabase = getSupabaseClient();
+  const sessionUserId = await requireSessionUserId();
+  const buyerId = resolveAuthorId(sessionUserId, params.buyerId, 'listing');
+
+  const sourcePlatform = params.sourcePlatform ?? 'ECHRI';
+  const listingUrl = sourcePlatform === 'ECHRI' ? null : params.listingUrl?.trim() || null;
+  const withSource = sourcePlatform !== 'ECHRI';
+
+  const { data: listing, error: listingError } = await supabase
+    .from('listings')
+    .insert({
+      buyer_id: buyerId,
+      category_id: params.categoryId,
+      title: params.title,
+      asking_price: params.askingPrice,
+      location_wilaya: params.locationWilaya,
+      location_commune: params.locationCommune,
+      description: params.description,
+      photos: params.photos || [],
+      ...(withSource ? { listing_url: listingUrl, source_platform: sourcePlatform } : {}),
+    })
+    .select()
+    .single();
+
+  if (listingError) throw listingError;
+
+  const { data: realEstate, error: reError } = await supabase
+    .from('listing_real_estate')
+    .insert({
+      listing_id: (listing as { id: string }).id,
+      domain: params.domain,
+      property_type: params.propertyType,
+      surface_m2: params.surfaceM2,
+      cadastral_ref: params.cadastralRef ?? null,
+      property_paper_declared: params.propertyPaperDeclared ?? null,
+      gps_lat: params.gpsLat ?? null,
+      gps_lng: params.gpsLng ?? null,
+      utilities: params.utilities ?? null,
+      topography: params.topography ?? null,
+      soil_type: params.soilType ?? null,
+      zoning: params.zoning ?? null,
+      road_access: params.roadAccess ?? null,
+      boundary_fenced: params.boundaryFenced ?? null,
+      rooms: params.rooms ?? null,
+      floors: params.floors ?? null,
+      construction_year: params.constructionYear ?? null,
+      condition: params.condition ?? null,
+      parking_spaces: params.parkingSpaces ?? null,
+      has_elevator: params.hasElevator ?? null,
+      heating_type: params.heatingType ?? null,
+      notes: params.notes ?? null,
+    })
+    .select()
+    .single();
+
+  if (reError) throw reError;
+
+  return {
+    ...(listing as object),
+    real_estate: realEstate as ListingRealEstate,
+  } as Listing;
+}
+
 export async function createBookingRequest(params: {
   listingId: string;
   buyerId?: string;
@@ -348,16 +452,22 @@ export async function updateMyProfile(params: { fullName: string; phone: string 
  * P3 — Listings du Buyer connecté (RLS : buyer_id = auth.uid()).
  * Jamais de buyer_id arbitraire.
  */
-export async function getMyListings(): Promise<Listing[]> {  const supabase = getSupabaseClient();
+export async function getMyListings(): Promise<Listing[]> {
+  const supabase = getSupabaseClient();
   const sessionUserId = await requireSessionUserId();
   const { data, error } = await supabase
     .from('listings')
-    .select('*, categories(code, name)')
+    .select('*, categories(code, name), listing_real_estate(*)')
     .eq('buyer_id', sessionUserId)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []) as Listing[];
+  return (data || []).map((row: any) => ({
+    ...row,
+    real_estate: Array.isArray(row.listing_real_estate)
+      ? row.listing_real_estate[0] || null
+      : row.listing_real_estate || null,
+  })) as Listing[];
 }
 
 /**

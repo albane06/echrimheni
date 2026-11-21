@@ -1,6 +1,7 @@
 import { getSupabaseAdminClient, getSupabaseClient } from '../client.js';
 import { generateInspectionPdf, type ReportPdfData } from './pdf.js';
 import { requireSessionUserId } from './buyer.js';
+import { getLegalDisclaimer } from '@echrimheni/shared';
 
 export const REPORTS_BUCKET = 'reports';
 
@@ -54,15 +55,82 @@ export async function getReportPdfSignedUrl(pdfUrl: string): Promise<string | nu
 }
 
 /**
- * P6.2-A — Construction des données PDF depuis un rapport persisté (pur,
- * testable). Aucune donnée hardcodée : tout vient du rapport stocké.
+ * P6.2-A / P8.05 — Construction des données PDF depuis un rapport persisté (pur,
+ * testable). Supporte véhicules, matériels, terrains fonciers et biens bâtis.
  */
 export function buildReportPdfData(report: any): ReportPdfData {
   const booking = report.bookings || {};
   const listing = booking.listings || {};
+  const realEstate = Array.isArray(listing.listing_real_estate)
+    ? listing.listing_real_estate[0]
+    : listing.listing_real_estate || listing.real_estate;
+  const categoryCode =
+    listing.categories?.code?.toLowerCase() ||
+    (realEstate?.domain ? String(realEstate.domain).toLowerCase() : undefined);
   const expertName =
     booking?.expert?.profiles?.full_name || booking?.expert?.full_name || 'Expert';
   const answers: any[] = Array.isArray(report.answers) ? report.answers : [];
+
+  const isTerrain = categoryCode === 'terrain' || realEstate?.domain === 'TERRAIN';
+  const isImmobilier = categoryCode === 'immobilier' || realEstate?.domain === 'IMMOBILIER';
+
+  let vehicleData;
+  let landData;
+  let propertyData;
+
+  if (isTerrain && realEstate) {
+    const utils: string[] = [];
+    if (realEstate.utilities?.electricity) utils.push('Electricité');
+    if (realEstate.utilities?.water) utils.push('Eau');
+    if (realEstate.utilities?.gas) utils.push('Gaz');
+    if (realEstate.utilities?.sewage) utils.push('Assainissement');
+    if (realEstate.utilities?.internet) utils.push('Internet');
+
+    const gpsStr =
+      realEstate.gps_lat != null && realEstate.gps_lng != null
+        ? `${Number(realEstate.gps_lat).toFixed(5)}, ${Number(realEstate.gps_lng).toFixed(5)}`
+        : undefined;
+
+    landData = {
+      parcelType: realEstate.property_type || 'Terrain',
+      surfaceAreaM2: realEstate.surface_m2 || 0,
+      cadastralRef: realEstate.cadastral_ref || undefined,
+      topography: realEstate.topography || undefined,
+      utilities: utils,
+      accessType: realEstate.road_access || undefined,
+      askingPrice: listing.asking_price,
+      location: listing.location_wilaya || '',
+      gpsCoordinates: gpsStr,
+      propertyPaper: realEstate.property_paper_declared || undefined
+    };
+  } else if (isImmobilier && realEstate) {
+    const gpsStr =
+      realEstate.gps_lat != null && realEstate.gps_lng != null
+        ? `${Number(realEstate.gps_lat).toFixed(5)}, ${Number(realEstate.gps_lng).toFixed(5)}`
+        : undefined;
+
+    propertyData = {
+      propertyType: realEstate.property_type || 'Bien Bâti',
+      livingAreaM2: realEstate.surface_m2 || 0,
+      rooms: realEstate.rooms ?? undefined,
+      floors: realEstate.floors ?? undefined,
+      constructionYear: realEstate.construction_year ?? undefined,
+      condition: realEstate.condition || undefined,
+      askingPrice: listing.asking_price,
+      location: listing.location_wilaya || '',
+      gpsCoordinates: gpsStr,
+      propertyPaper: realEstate.property_paper_declared || undefined
+    };
+  } else {
+    vehicleData = {
+      make: listing.make || '',
+      model: listing.model || listing.title || '',
+      year: listing.year || new Date().getFullYear(),
+      mileage: listing.mileage,
+      askingPrice: listing.asking_price,
+      location: listing.location_wilaya || ''
+    };
+  }
 
   return {
     reportNumber: `RPT-${String(report.id || '').slice(0, 8).toUpperCase()}`,
@@ -70,14 +138,10 @@ export function buildReportPdfData(report: any): ReportPdfData {
       ? new Date(report.published_at).toLocaleDateString('fr-FR')
       : new Date(report.created_at).toLocaleDateString('fr-FR'),
     score: report.score,
-    vehicle: {
-      make: listing.make || '',
-      model: listing.model || listing.title || '',
-      year: listing.year || new Date().getFullYear(),
-      mileage: listing.mileage,
-      askingPrice: listing.asking_price,
-      location: listing.location_wilaya || ''
-    },
+    ...(vehicleData ? { vehicle: vehicleData } : {}),
+    ...(landData ? { land: landData } : {}),
+    ...(propertyData ? { property: propertyData } : {}),
+    disclaimerText: report.disclaimer || getLegalDisclaimer(categoryCode),
     expert: {
       fullName: expertName,
       phone: '',
@@ -120,7 +184,7 @@ export async function ensureReportPdf(
   const { data: report, error: reportError } = await supabase
     .from('reports')
     .select(
-      '*, bookings!inner(id, buyer_id, expert_id, status, listings(title, make, model, year, mileage, asking_price, location_wilaya), expert:expert_profiles!expert_id(profiles(full_name)))'
+      '*, bookings!inner(id, buyer_id, expert_id, status, listings(title, make, model, year, mileage, asking_price, location_wilaya, categories(code), listing_real_estate(*)), expert:expert_profiles!expert_id(profiles(full_name)))'
     )
     .eq('id', reportId)
     .single();

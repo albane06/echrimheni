@@ -114,15 +114,70 @@ export interface InspectionItem {
   possible_severities: SeverityLevel[];
 }
 
+export type RealEstateDomain = 'TERRAIN' | 'IMMOBILIER';
+
+export type PropertyTypeTerrain = 'AGRICOLE' | 'CONSTRUCTIBLE' | 'INDUSTRIEL' | 'AUTRE';
+
+export type PropertyTypeBati =
+  | 'APPARTEMENT'
+  | 'VILLA'
+  | 'LOCAL_COMMERCIAL'
+  | 'IMMEUBLE'
+  | 'HANGAR'
+  | 'AUTRE';
+
+export type PropertyPaperType =
+  | 'LIVRET_FONCIER'
+  | 'ACTE_NOTARIE'
+  | 'CERTIFICAT_POSSESSION'
+  | 'DECISION'
+  | 'NON_SPECIFIE';
+
+export interface RealEstateUtilities {
+  electricity?: boolean;
+  water?: boolean;
+  gas?: boolean;
+  sewage?: boolean;
+  internet?: boolean;
+}
+
+export interface ListingRealEstate {
+  id: string;
+  listing_id: string;
+  domain: RealEstateDomain;
+  property_type: string;
+  surface_m2: number;
+  cadastral_ref?: string | null;
+  property_paper_declared?: PropertyPaperType | string | null;
+  gps_lat?: number | null;
+  gps_lng?: number | null;
+  utilities?: RealEstateUtilities | null;
+  topography?: string | null;
+  soil_type?: string | null;
+  zoning?: string | null;
+  road_access?: string | null;
+  boundary_fenced?: boolean | null;
+  rooms?: number | null;
+  floors?: number | null;
+  construction_year?: number | null;
+  condition?: string | null;
+  parking_spaces?: number | null;
+  has_elevator?: boolean | null;
+  heating_type?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface Listing {
   id: string;
   buyer_id: string;
   category_id: string;
   title: string;
-  make: string;
-  model: string;
-  year: number;
-  mileage?: number;
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  mileage?: number | null;
   asking_price?: number;
   location_wilaya: string;
   location_commune: string;
@@ -132,6 +187,8 @@ export interface Listing {
   listing_url?: string | null;
   /** P7.6 — plateforme source (défaut 'ECHRI'). */
   source_platform?: 'ECHRI' | 'FACEBOOK_MARKETPLACE' | 'OUEDKNISS' | 'OTHER';
+  /** P8.05 — Extension foncière et immobilière */
+  real_estate?: ListingRealEstate | null;
   created_at: string;
 }
 
