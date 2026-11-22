@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   calculateInspectionScore,
   getLegalDisclaimer,
@@ -622,6 +624,109 @@ describe('MANDAT P8.05-B — Terrain & Immobilier MVP Test Suite', () => {
       expect(mapped.vehicle?.make).toBe('Toyota');
       expect(mapped.vehicle?.model).toBe('Yaris');
       expect(mapped.disclaimerText).toBe(LEGAL_DISCLAIMER);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // TEST 11 : Audit structurel et idempotence du script SQL de migration (P8.05-D2)
+  // --------------------------------------------------------------------------
+  describe('11. SQL Migration Script Audit (20260912000012_terrain_immobilier_mvp.sql)', () => {
+    const migrationPath = resolve(
+      __dirname,
+      '../packages/database/supabase/migrations/20260912000012_terrain_immobilier_mvp.sql'
+    );
+    const sqlContent = readFileSync(migrationPath, 'utf-8');
+
+    it('contains no generic error masking (no EXCEPTION WHEN OTHERS THEN NULL)', () => {
+      expect(sqlContent).not.toContain('WHEN OTHERS THEN');
+      expect(sqlContent).not.toContain('EXCEPTION');
+      expect(sqlContent).toContain('information_schema.columns');
+      expect(sqlContent).toContain("column_name = 'make'");
+      expect(sqlContent).toContain("column_name = 'model'");
+      expect(sqlContent).toContain("column_name = 'year'");
+    });
+
+    it('resolves category_id dynamically in services rather than fixed UUIDs', () => {
+      expect(sqlContent).toContain("(SELECT id FROM public.categories WHERE code = 'terrain')");
+      expect(sqlContent).toContain("(SELECT id FROM public.categories WHERE code = 'immobilier')");
+      expect(sqlContent).toContain('category_id = EXCLUDED.category_id');
+    });
+
+    it('omits redundant index on listing_id (already provided by UNIQUE constraint)', () => {
+      expect(sqlContent).toContain('CONSTRAINT uq_listing_real_estate_listing_id UNIQUE (listing_id)');
+      expect(sqlContent).not.toContain('CREATE INDEX IF NOT EXISTS idx_listing_real_estate_listing_id');
+      expect(sqlContent).toContain('CREATE INDEX IF NOT EXISTS idx_listing_real_estate_domain');
+      expect(sqlContent).toContain('CREATE INDEX IF NOT EXISTS idx_listing_real_estate_property_type');
+    });
+
+    it('defines exactly 32 columns on listing_real_estate', () => {
+      const tableMatch = sqlContent.match(/CREATE TABLE IF NOT EXISTS public\.listing_real_estate \(([\s\S]*?)\);/);
+      expect(tableMatch).toBeDefined();
+      const body = tableMatch![1];
+      const columnLines = body
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0 && !line.startsWith('CONSTRAINT') && !line.startsWith('--'));
+      expect(columnLines).toHaveLength(32);
+
+      // Verify key sensitive columns exist
+      expect(sqlContent).toContain('gps_lat NUMERIC(10, 7)');
+      expect(sqlContent).toContain('gps_lng NUMERIC(10, 7)');
+      expect(sqlContent).toContain('gps_address_note TEXT');
+      expect(sqlContent).toContain('cadastral_ref TEXT');
+      expect(sqlContent).toContain('property_paper_declared TEXT');
+      expect(sqlContent).toContain('surface_m2 NUMERIC(12, 2)');
+      expect(sqlContent).toContain('domain TEXT NOT NULL CHECK (domain IN (\'TERRAIN\', \'IMMOBILIER\'))');
+    });
+
+    it('enforces least-privilege, idempotent RLS policies (SELECT, INSERT, UPDATE, DELETE)', () => {
+      expect(sqlContent).toContain('DROP POLICY IF EXISTS "listing_real_estate_select"');
+      expect(sqlContent).toContain('CREATE POLICY "listing_real_estate_select"');
+      expect(sqlContent).toContain('DROP POLICY IF EXISTS "listing_real_estate_insert"');
+      expect(sqlContent).toContain('CREATE POLICY "listing_real_estate_insert"');
+      expect(sqlContent).toContain('DROP POLICY IF EXISTS "listing_real_estate_update"');
+      expect(sqlContent).toContain('CREATE POLICY "listing_real_estate_update"');
+      expect(sqlContent).toContain('DROP POLICY IF EXISTS "listing_real_estate_delete"');
+      expect(sqlContent).toContain('CREATE POLICY "listing_real_estate_delete"');
+
+      // Security roles verification: strictly least privilege (P8.05-D3)
+      expect(sqlContent).toContain('public.is_admin(auth.uid())');
+      expect(sqlContent).toContain('l.buyer_id = auth.uid()');
+      expect(sqlContent).toContain('b.expert_id = auth.uid()');
+
+      // Unassigned experts must NOT have blanket access to sensitive GPS/cadastral data
+      expect(sqlContent).not.toContain('verification_status');
+    });
+
+    it('verifies exact counts: 2 categories, 7 services, 2 templates, 14 sections, 28 items', () => {
+      // 2 categories
+      expect(sqlContent).toContain("'terrain'");
+      expect(sqlContent).toContain("'immobilier'");
+
+      // 7 distinct services
+      const allServiceMatches = sqlContent.match(/'22222222-2222-2222-2222-2222222222[45][1-4]'/g) || [];
+      const distinctServices = Array.from(new Set(allServiceMatches));
+      expect(distinctServices).toHaveLength(7);
+
+      // 2 templates
+      const templateMatches = sqlContent.match(/'33333333-3333-3333-3333-3333333333[45]1'/g) || [];
+      expect(Array.from(new Set(templateMatches))).toHaveLength(2);
+
+      // 14 sections (6 terrain + 8 immobilier)
+      const terrainSections = sqlContent.match(/'44444444-4444-4444-4444-44444444480[1-6]'/g) || [];
+      const immoSections = sqlContent.match(/'44444444-4444-4444-4444-44444444490[1-8]'/g) || [];
+      expect(Array.from(new Set(terrainSections))).toHaveLength(6);
+      expect(Array.from(new Set(immoSections))).toHaveLength(8);
+      expect(Array.from(new Set([...terrainSections, ...immoSections]))).toHaveLength(14);
+
+      // 28 items (12 terrain + 16 immobilier)
+      const terrainItems = sqlContent.match(/'55555555-5555-5555-5555-0000000009[01][0-9]'/g) || [];
+      const immoItems = sqlContent.match(/'55555555-5555-5555-5555-0000000010[01][0-9]'/g) || [];
+      const distinctTerrainItems = Array.from(new Set(terrainItems));
+      const distinctImmoItems = Array.from(new Set(immoItems));
+      expect(distinctTerrainItems).toHaveLength(12);
+      expect(distinctImmoItems).toHaveLength(16);
+      expect(distinctTerrainItems.length + distinctImmoItems.length).toBe(28);
     });
   });
 });
