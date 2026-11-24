@@ -10,6 +10,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 type MissionRow = {
   id: string;
   title: string;
+  category_name: string;
   buyer_name: string;
   expert_name: string;
   status: string;
@@ -19,16 +20,24 @@ type MissionRow = {
 };
 
 function normalizeMissions(data: any[]): MissionRow[] {
-  return data.map((m: any) => ({
-    id: m.id,
-    title: m.listings?.title || `${m.listings?.make || ''} ${m.listings?.model || ''} (${m.listings?.year || ''})`,
-    buyer_name: m.buyer?.full_name || 'Acheteur',
-    expert_name: m.expert?.profiles?.full_name || 'Expert',
-    status: m.status,
-    score: m.reports?.[0]?.score ?? null,
-    price: m.price_total || 0,
-    date: m.created_at,
-  }));
+  return data.map((m: any) => {
+    const realEstate = Array.isArray(m.listings?.listing_real_estate)
+      ? m.listings.listing_real_estate[0]
+      : m.listings?.listing_real_estate;
+    const catCode = m.listings?.categories?.code || (realEstate?.domain ? String(realEstate.domain).toLowerCase() : null);
+    const catName = m.listings?.categories?.name || (catCode === 'terrain' ? 'Terrain & Foncier' : catCode === 'immobilier' ? 'Immobilier & Bâti' : 'Automobile');
+    return {
+      id: m.id,
+      title: m.listings?.title || `${m.listings?.make || ''} ${m.listings?.model || ''} (${m.listings?.year || ''})`.trim() || 'Mission sans titre',
+      category_name: catName,
+      buyer_name: m.buyer?.full_name || 'Acheteur',
+      expert_name: m.expert?.profiles?.full_name || 'Expert',
+      status: m.status,
+      score: m.reports?.[0]?.score ?? null,
+      price: m.price_total || 0,
+      date: m.created_at,
+    };
+  });
 }
 
 const statusTabs = [
@@ -91,7 +100,7 @@ export default function MissionsPage() {
       if (activeTab === 'DISPUTED') return m.status === 'DISPUTED';
       return true;
     })
-    .filter(m => !search || m.title.toLowerCase().includes(search.toLowerCase()) || m.buyer_name.toLowerCase().includes(search.toLowerCase()));
+    .filter(m => !search || m.title.toLowerCase().includes(search.toLowerCase()) || m.buyer_name.toLowerCase().includes(search.toLowerCase()) || m.category_name.toLowerCase().includes(search.toLowerCase()));
 
   if (loading) return <LoadingState message="Chargement des missions..." />;
   if (error) return <ErrorState message={error} onRetry={loadMissions} />;
@@ -112,7 +121,7 @@ export default function MissionsPage() {
           activeTab={activeTab}
           onChange={setActiveTab}
         />
-        <SearchInput value={search} onChange={setSearch} placeholder="Rechercher par véhicule ou acheteur..." className="w-72" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Rechercher par objet, catégorie ou acheteur..." className="w-80" />
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => void handleExpireStale()} loading={expiring}>
             Expirer les demandes périmées
@@ -123,7 +132,12 @@ export default function MissionsPage() {
 
       <DataTable<MissionRow>
         columns={[
-          { key: 'title', header: 'Mission / Objet', render: (r) => <span className="font-semibold text-slate-900">{r.title}</span> },
+          { key: 'title', header: 'Mission / Objet', render: (r) => (
+            <div className="flex flex-col">
+              <span className="font-semibold text-slate-900">{r.title}</span>
+              <span className="text-xs text-slate-500 font-medium">{r.category_name}</span>
+            </div>
+          ) },
           { key: 'buyer', header: 'Acheteur', render: (r) => <span className="text-slate-600">{r.buyer_name}</span> },
           { key: 'expert', header: 'Expert', render: (r) => <span className="text-slate-600">{r.expert_name}</span> },
           { key: 'date', header: 'Date', render: (r) => <span className="text-xs text-slate-400">{formatDate(r.date)}</span> },

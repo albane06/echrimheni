@@ -110,7 +110,27 @@ export async function getAllMissions() {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('bookings')
-    .select('*, listings(title, make, model, year, location_wilaya, listing_url, source_platform), buyer:profiles!buyer_id(full_name), expert:expert_profiles!expert_id(profiles(full_name)), reports(score, is_published)')
+    .select(`
+      *,
+      listings(
+        id,
+        title,
+        make,
+        model,
+        year,
+        location_wilaya,
+        location_commune,
+        listing_url,
+        source_platform,
+        category_id,
+        categories(code, name),
+        listing_real_estate(*)
+      ),
+      services(id, name, base_price, category_id),
+      buyer:profiles!buyer_id(full_name),
+      expert:expert_profiles!expert_id(profiles(full_name)),
+      reports(score, is_published)
+    `)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -152,7 +172,19 @@ export async function getAllReports() {
       *,
       bookings!inner(
         id, status, price_total, commission_platform, expert_payout, created_at,
-        listings(title, make, model, year, location_wilaya),
+        listings(
+          id,
+          title,
+          make,
+          model,
+          year,
+          location_wilaya,
+          location_commune,
+          category_id,
+          categories(code, name),
+          listing_real_estate(*)
+        ),
+        services(id, name, base_price),
         buyer:profiles!buyer_id(full_name),
         expert:expert_profiles!expert_id(profiles(full_name))
       )

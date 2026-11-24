@@ -8,7 +8,7 @@ import { ConfirmModal } from '@/components/ui/Modal';
 import { BookingStatusBadge } from '@/components/ui/StatusBadge';
 import { Timeline } from '@/components/ui/Timeline';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { ArrowLeft, FileText, CreditCard, User, UserCheck } from 'lucide-react';
+import { ArrowLeft, FileText, CreditCard, User, UserCheck, MapPin, Home, Building2, Layers, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 
 interface MissionDetail {
@@ -26,6 +26,43 @@ interface MissionDetail {
   location: string;
   wilaya: string;
   notes: string | null;
+  category_code?: string | null;
+  category_name?: string | null;
+  service_name?: string | null;
+  real_estate?: {
+    domain: 'TERRAIN' | 'IMMOBILIER';
+    property_type: string;
+    surface_m2: number;
+    cadastral_ref?: string | null;
+    property_paper_declared?: string | null;
+    gps_lat?: number | null;
+    gps_lng?: number | null;
+    gps_address_note?: string | null;
+    topography?: string | null;
+    road_access?: string | null;
+    access_road_type?: string | null;
+    utilities?: {
+      water?: boolean;
+      electricity?: boolean;
+      gas?: boolean;
+      sewage?: boolean;
+      sanitation_type?: string;
+    } | null;
+    rooms?: number | null;
+    rooms_count?: number | null;
+    floors?: number | null;
+    floor_number?: number | null;
+    total_floors?: number | null;
+    condition?: string | null;
+    building_condition?: string | null;
+    construction_year?: number | null;
+    parking_spaces?: number | null;
+    has_elevator?: boolean | null;
+    boundary_fenced?: boolean | null;
+    soil_type?: string | null;
+    zoning?: string | null;
+    notes?: string | null;
+  } | null;
 }
 
 export default function MissionDetailPage() {
@@ -50,9 +87,16 @@ export default function MissionDetailPage() {
       const data = await getAllMissions();
       const found = data.find((m: any) => m.id === missionId);
       if (found) {
+        const realEstate = Array.isArray(found.listings?.listing_real_estate)
+          ? found.listings.listing_real_estate[0]
+          : found.listings?.listing_real_estate || null;
+        const categoryCode = found.listings?.categories?.code || (realEstate?.domain ? String(realEstate.domain).toLowerCase() : null);
+        const categoryName = found.listings?.categories?.name || (categoryCode === 'terrain' ? 'Terrain & Foncier' : categoryCode === 'immobilier' ? 'Immobilier & Bâti' : 'Automobile');
+        const serviceName = found.services?.name || null;
+
         setMission({
           id: found.id,
-          title: found.listings?.title || `${found.listings?.make || ''} ${found.listings?.model || ''}`,
+          title: found.listings?.title || `${found.listings?.make || ''} ${found.listings?.model || ''}`.trim() || 'Mission sans titre',
           buyer_name: found.buyer?.full_name || 'Acheteur',
           expert_name: found.expert?.profiles?.full_name || 'Expert',
           status: found.status,
@@ -65,6 +109,10 @@ export default function MissionDetailPage() {
           location: found.location_address || '',
           wilaya: found.listings?.location_wilaya || '',
           notes: found.notes || null,
+          category_code: categoryCode,
+          category_name: categoryName,
+          service_name: serviceName,
+          real_estate: realEstate,
         });
         // P6.5-B — état du marquage « dû » si annulée après paiement.
         if (found.status === 'CANCELLED' && (found.price_total || 0) > 0) {
@@ -163,11 +211,19 @@ export default function MissionDetailPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h2 className="text-xl font-bold text-slate-900">{mission.title}</h2>
             <BookingStatusBadge status={mission.status as any} />
+            {mission.category_name && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                {mission.category_name}
+              </span>
+            )}
           </div>
-          <p className="text-sm text-slate-500 mt-1">{mission.location} • {mission.wilaya}</p>
+          <p className="text-sm text-slate-500 mt-1">
+            {mission.location ? `${mission.location} • ` : ''}{mission.wilaya || 'Wilaya non précisée'}
+            {mission.service_name && <span className="ml-2 font-medium text-slate-700">| Service : {mission.service_name}</span>}
+          </p>
           {actionError && <p className="text-sm text-red-600 mt-2">{actionError}</p>}
         </div>
         <div className="flex items-center gap-3">
@@ -240,10 +296,140 @@ export default function MissionDetailPage() {
             </Link>
           )}
         </div>
-        <Card className="lg:col-span-2">
-          <CardTitle>Chronologie de la mission</CardTitle>
-          <div className="mt-6"><Timeline events={timelineEvents} /></div>
-        </Card>
+        <div className="lg:col-span-2 space-y-6">
+          {mission.real_estate && (
+            <Card>
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  {mission.real_estate.domain === 'TERRAIN' ? (
+                    <MapPin className="h-5 w-5 text-emerald-600" />
+                  ) : (
+                    <Home className="h-5 w-5 text-blue-600" />
+                  )}
+                  <CardTitle>Spécificités du bien — {mission.real_estate.domain === 'TERRAIN' ? 'Terrain & Foncier' : 'Immobilier & Bâti'}</CardTitle>
+                </div>
+                <span className="px-2.5 py-1 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                  {mission.real_estate.property_type}
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-xs text-slate-400 block">Surface déclarée</span>
+                  <span className="font-semibold text-slate-900 text-base">{mission.real_estate.surface_m2} m²</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-400 block">Titre / Papiers déclarés</span>
+                  <span className="font-medium text-slate-900">{mission.real_estate.property_paper_declared || 'Non déclaré'}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-400 block">Référence cadastrale</span>
+                  <span className="font-medium text-slate-900">{mission.real_estate.cadastral_ref || 'Non renseignée'}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-400 block">Accès routier</span>
+                  <span className="font-medium text-slate-900">{mission.real_estate.road_access || mission.real_estate.access_road_type || 'Non renseigné'}</span>
+                </div>
+                {mission.real_estate.topography && (
+                  <div>
+                    <span className="text-xs text-slate-400 block">Topographie</span>
+                    <span className="font-medium text-slate-900">{mission.real_estate.topography}</span>
+                  </div>
+                )}
+                {mission.real_estate.gps_lat != null && mission.real_estate.gps_lng != null && (
+                  <div className="sm:col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5 text-red-500" /> Coordonnées GPS certifiées
+                      </span>
+                      <a
+                        href={`https://maps.google.com/?q=${mission.real_estate.gps_lat},${mission.real_estate.gps_lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                      >
+                        Voir sur la carte <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                    <p className="font-mono text-xs text-slate-800 mt-1">
+                      {mission.real_estate.gps_lat}, {mission.real_estate.gps_lng}
+                    </p>
+                    {mission.real_estate.gps_address_note && (
+                      <p className="text-xs text-slate-500 mt-1 italic">
+                        Note : {mission.real_estate.gps_address_note}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Viabilisation & Réseaux */}
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-2">
+                  Réseaux & Viabilisation
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className={`flex items-center gap-1.5 p-2 rounded ${mission.real_estate.utilities?.electricity ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-500'}`}>
+                    {mission.real_estate.utilities?.electricity ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <XCircle className="h-3.5 w-3.5 text-slate-400" />}
+                    <span>Électricité</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 p-2 rounded ${mission.real_estate.utilities?.water ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-500'}`}>
+                    {mission.real_estate.utilities?.water ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <XCircle className="h-3.5 w-3.5 text-slate-400" />}
+                    <span>Eau potable</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 p-2 rounded ${mission.real_estate.utilities?.gas ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-500'}`}>
+                    {mission.real_estate.utilities?.gas ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <XCircle className="h-3.5 w-3.5 text-slate-400" />}
+                    <span>Gaz naturel</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 p-2 rounded ${mission.real_estate.utilities?.sewage ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-500'}`}>
+                    {mission.real_estate.utilities?.sewage ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <XCircle className="h-3.5 w-3.5 text-slate-400" />}
+                    <span>Assainissement</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Spécificités Bâti si Immobilier */}
+              {mission.real_estate.domain === 'IMMOBILIER' && (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-2">
+                    Caractéristiques du Bâti
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block">Pièces</span>
+                      <span className="font-medium text-slate-800">{mission.real_estate.rooms_count ?? mission.real_estate.rooms ?? 'Non précisé'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Étages</span>
+                      <span className="font-medium text-slate-800">{mission.real_estate.floors ?? 'Non précisé'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Année construction</span>
+                      <span className="font-medium text-slate-800">{mission.real_estate.construction_year ?? 'Non précisée'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">État général</span>
+                      <span className="font-medium text-slate-800">{mission.real_estate.building_condition ?? mission.real_estate.condition ?? 'Non précisé'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Ascenseur</span>
+                      <span className="font-medium text-slate-800">{mission.real_estate.has_elevator ? 'Oui' : 'Non'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Parking</span>
+                      <span className="font-medium text-slate-800">{mission.real_estate.parking_spaces != null ? `${mission.real_estate.parking_spaces} place(s)` : 'Non précisé'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          <Card>
+            <CardTitle>Chronologie de la mission</CardTitle>
+            <div className="mt-6"><Timeline events={timelineEvents} /></div>
+          </Card>
+        </div>
       </div>
 
       <ConfirmModal

@@ -404,13 +404,20 @@ export function ExpertScreen({
         severity: answers[item.id]?.severity,
         comment: answers[item.id]?.comment,
       }));
-      const result = calculateInspectionScore(answersWithItems);
+      const realEstate = Array.isArray(selected.listings?.listing_real_estate)
+        ? selected.listings.listing_real_estate[0]
+        : selected.listings?.listing_real_estate;
+      const categoryCode =
+        selected.listings?.categories?.code ||
+        (realEstate?.domain ? String(realEstate.domain).toLowerCase() : undefined);
+      const result = calculateInspectionScore(answersWithItems, categoryCode);
       await finalizeAndPublishReport({
         bookingId: selected.id,
         sessionId: session.id,
         expertId,
         summary: 'Inspection réalisée sur site conformément à la grille.',
         answersWithItems,
+        categoryCode,
       });
       setFinalScore(result.score);
       await loadMissions();

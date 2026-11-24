@@ -89,7 +89,7 @@ export async function getMyExpertBookings() {
   const { data, error } = await supabase
     .from('bookings')
     .select(
-      '*, listings(title, make, model, year, location_wilaya, location_commune, listing_url, source_platform), services(name, base_price), reports(score, is_published)'
+      '*, listings(title, make, model, year, location_wilaya, location_commune, listing_url, source_platform, category_id, categories(code, name), listing_real_estate(*)), services(name, base_price, category_id), reports(score, is_published)'
     )
     .eq('expert_id', sessionUserId)
     .order('created_at', { ascending: false });
@@ -447,7 +447,12 @@ export async function loadDynamicChecklist(serviceId?: string): Promise<{
 
   const { data: templates, error: tmplError } = await templateQuery.limit(1);
   if (tmplError || !templates || templates.length === 0) {
-    throw new Error('Aucun modele d inspection trouve.');
+    throw new ServiceError(
+      'NOT_FOUND',
+      serviceId
+        ? `Checklist indisponible : aucun modèle d'inspection actif pour le service '${serviceId}'.`
+        : "Aucun modèle d'inspection trouvé."
+    );
   }
 
   const templateId = templates[0].id;
@@ -506,6 +511,24 @@ export async function startInspection(bookingId: string, expertId?: string) {
       'BUSINESS',
       `Démarrage refusé : statut actuel '${booking.status}', SCHEDULED requis.`
     );
+  }
+
+  // P8.07 — Vérification préalable qu'un modèle d'inspection actif existe pour ce service
+  // Empêche le démarrage d'une inspection avec une checklist vide ou inadaptée.
+  if (booking.service_id) {
+    const { data: tmpl, error: tmplErr } = await supabase
+      .from('inspection_templates')
+      .select('id')
+      .eq('service_id', booking.service_id)
+      .eq('is_active', true)
+      .limit(1);
+
+    if (tmplErr || !tmpl || tmpl.length === 0) {
+      throw new ServiceError(
+        'BUSINESS',
+        `Démarrage refusé : aucun modèle d'inspection actif n'est associé au service de cette mission.`
+      );
+    }
   }
 
   // P4 — expert APPROVED exigé (contrôle applicatif ; la RPC contrôle aussi).
@@ -608,6 +631,7 @@ export async function finalizeAndPublishReport(params: {
   summary: string;
   answersWithItems: AnswerWithItem[];
   pdfUrl?: string;
+  categoryCode?: string;
 }) {
   const supabase = getSupabaseClient();
 
@@ -620,7 +644,27 @@ export async function finalizeAndPublishReport(params: {
     throw new Error('Impossible de finaliser : ' + check.missingItems.length + ' point(s) obligatoire(s) non renseigne(s).');
   }
 
-  const scoreResult = calculateInspectionScore(params.answersWithItems);
+  // P8.07 - Résolution robuste du categoryCode pour garantir le disclaimer approprié
+  let categoryCode = params.categoryCode;
+  if (!categoryCode) {
+    try {
+      const { data: bookingData } = await supabase
+        .from('bookings')
+        .select('listings(category_id, categories(code), listing_real_estate(domain))')
+        .eq('id', params.bookingId)
+        .maybeSingle();
+      const listing: any = bookingData?.listings;
+      categoryCode =
+        listing?.categories?.code ||
+        (Array.isArray(listing?.listing_real_estate)
+          ? listing?.listing_real_estate[0]?.domain?.toLowerCase()
+          : listing?.listing_real_estate?.domain?.toLowerCase());
+    } catch (catErr) {
+      console.warn('[finalizeAndPublishReport] Impossible de résoudre le categoryCode :', catErr);
+    }
+  }
+
+  const scoreResult = calculateInspectionScore(params.answersWithItems, categoryCode);
 
   const { data: report, error: repError } = await supabase
     .from('reports')
